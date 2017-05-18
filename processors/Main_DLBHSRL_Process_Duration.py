@@ -7,19 +7,23 @@ Created on Wed Jan  4 08:45:42 2017
 
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.io import netcdf
+#from scipy.io import netcdf
 import LidarProfileFunctions as lp
+import WVProfileFunctions as wv
 #import MLELidarProfileFunctions as mle
-import scipy.interpolate
+#import scipy.interpolate
 
-from mpl_toolkits.axes_grid1 import make_axes_locatable
+#from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 import datetime
+import json
 
 import glob
 
+cal_path = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/'
+cal_file = cal_path+'dlb_calvals_msu.json'
 
-Years,Months,Days,Hours = lp.generate_WVDIAL_day_list(2017,5,16,startHr=0,duration=24)  # WV-DIAL RD Correction ,startHr=5,duration=4.0
+Years,Months,Days,Hours = lp.generate_WVDIAL_day_list(2017,5,17,startHr=20,duration=4)  # WV-DIAL RD Correction ,startHr=5,duration=4.0
 #Years,Months,Days,Hours = lp.generate_WVDIAL_day_list(2017,4,18,startHr=4.5,stopHr=5.4)  # WV-DIAL RD Correction ,startHr=5,duration=4.0
 
 #Years,Months,Days,Hours = lp.generate_WVDIAL_day_list(2017,1,12,stopDay=19)
@@ -36,7 +40,8 @@ nctag = ''  # additional tag for netcdf and figure filename
 
 run_geo_cal = False
 
-ProcStart = datetime.date(Years[0],Months[0],Days[0])
+#ProcStart = datetime.date(Years[0],Months[0],Days[0])
+ProcStart = datetime.datetime(Years[0],Months[0],Days[0],Hours[0][0])
 
 DateLabel = ProcStart.strftime("%A %B %d, %Y")
 
@@ -44,7 +49,7 @@ MaxAlt = 12e3 #12e3
 
 KlettAlt = 14e3  # altitude where Klett inversion starts
 
-tres = 10*60.0  # resolution in time points (2 sec)
+tres = 1*60.0  # resolution in time points (2 sec)
 zres = 1.0  # resolution in altitude points (75 m)
 
 use_diff_geo = False   # no diff geo correction after April ???
@@ -54,11 +59,29 @@ use_mask = False
 SNRmask = 0.0  #SNR level used to decide what data points we keep in the final data product
 countLim = 2.0
 
-MCSbins = 280*2  # number of bins in a range resolved profile,  280-typical became 1400 on 2/22/2017
-BinWidth = 250e-9 # MCS timing bin width in seconds.  typically 500e-9 before April ?.  250e-9 after April ?
+with open(cal_file,"r") as f:
+    cal_jdata = json.loads(f.read())
+f.close()
+
+MCSbins = lp.get_calval(ProcStart,cal_jdata,'MCS bins')[0]
+BinWidth = lp.get_calval(ProcStart,cal_jdata,'Bin Width')[0]
+dt = lp.get_calval(ProcStart,cal_jdata,'Data Time Resolution')[0]
+LaserPulseWidth = lp.get_calval(ProcStart,cal_jdata,'Laser Pulse Width')[0]
+
+if use_diff_geo:
+    cal_value = lp.get_calval(ProcStart,cal_jdata,'Molecular Gain',cond=['diff_geo','!=','none'],returnlist=['value','diff_geo'])
+    diff_geo_file = cal_path+cal_value[1]
+else:
+    cal_value = lp.get_calval(ProcStart,cal_jdata,'Molecular Gain',cond=['diff_geo','=','none'])
+MolGain = cal_value[0]
+    
+
+#MCSbins = 2*280  # number of bins in a range resolved profile,  280-typical became 1400 on 2/22/2017.  After April ? use 2*280 when binwidths were changed to 250e-9.
+#BinWidth = 250e-9 # MCS timing bin width in seconds.  typically 500e-9 before April ?.  250e-9 after April ?
+#dt = 2  # profile accumulation time in seconds
+
 dR = BinWidth*lp.c/2  # profile range resolution (500e-9*c/2)-typical became 100e-9*c/2 on 2/22/2017
-dt = 2  # profile accumulation time in seconds
-Roffset = ((1.25+0.5)-0.5/2)*150  # offset in range
+Roffset = ((1.25+0.5)-0.5/2)*lp.c*LaserPulseWidth  # offset in range
 
 BGIndex = -50; # negative number provides an index from the end of the array
 Cam = 0.00 # Cross talk of aerosols into the molecular channel - 0.005 on Dec 21 2016 after 18.5UTC
@@ -72,7 +95,7 @@ sonde_path = '/scr/eldora1/HSRL_data/'
 #diff_geo_file = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/diff_geo_DLB_20161212.npz'
 #diff_geo_file = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/diff_geo_DLB_20161219_2.npz'
 #diff_geo_file = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/diff_geo_DLB_20161221_2.npz'
-diff_geo_file = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/diff_geo_DLB_20161227.npz'  #Provided by Scott
+#diff_geo_file = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/diff_geo_DLB_20161227.npz'  #Provided by Scott
 #diff_geo_file = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/diff_geo_DLB_20170301.npz'  #Provided by Scott
 #diff_geo_file = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/diff_geo_DLB_20170222.npz'  #Update with Zeeman calibration
 
@@ -116,118 +139,7 @@ if save_as_nc or save_figs:
     ncfilename = save_data_path+ncfilename0
     figfilename = save_fig_path + ncfilename0[:-3] + nctag
 
-firstFile = True
-
-for dayindex in range(Years.size):
-
-    if Days[dayindex] < 10:
-        DayStr = '0' + str(Days[dayindex])
-    else:
-        DayStr = str(Days[dayindex])
-        
-    if Months[dayindex] < 10:
-        MonthStr = '0' + str(Months[dayindex])
-    else:
-        MonthStr = str(Months[dayindex])
-    
-    YearStr = str(Years[dayindex])
-    HourLim = Hours[:,dayindex]
-    
-    # calculate the time offset due to being a different day than we started with
-    if firstFile:
-        deltat_0 = 0;
-    else:
-        deltat_0_date = datetime.date(Years[dayindex],Months[dayindex],Days[dayindex])-datetime.date(Years[0],Months[0],Days[0])
-        deltat_0 = deltat_0_date.days
-        
-    FilePath0 = basepath + YearStr + '/' + YearStr[-2:] + MonthStr + DayStr + FieldLabel
-    
-    SubDirs = glob.glob(FilePath0+'/*/')
-    
-    for idir in range(len(SubDirs)):
-        Hour = np.double(SubDirs[idir][-3:-1])
-        if Hour >= np.floor(HourLim[0]) and Hour <= HourLim[1]:
-            loadfile_mol = SubDirs[idir]+MolFileBase
-            loadfile_comb = SubDirs[idir]+CombFileBase
-            Hour = np.double(SubDirs[idir][-3:-1])
-            
-            #### LOAD NETCDF DATA ####
-            mol_data,mol_vars = lp.read_WVDIAL_binary(loadfile_mol,MCSbins)
-            hi_data,hi_vars = lp.read_WVDIAL_binary(loadfile_comb,MCSbins)
-                   
-            
-            timeDataM =3600*24*(np.remainder(mol_vars[0,:],1)+deltat_0)
-            timeDataT =3600*24*(np.remainder(hi_vars[0,:],1)+deltat_0)
-            
-            shots_m = np.ones(np.shape(timeDataM))*np.mean(mol_vars[6,:])
-            shots_t = np.ones(np.shape(timeDataT))*np.mean(mol_vars[6,:])
-            
-            itimeBad = np.nonzero(np.diff(timeDataM)<0)[0]        
-            if itimeBad.size > 0:
-                timeDataM[itimeBad+1] = timeDataM[itimeBad]+dt
-                
-            itimeBad = np.nonzero(np.diff(timeDataT)<0)[0]        
-            if itimeBad.size > 0:
-                timeDataT[itimeBad+1] = timeDataT[itimeBad]+dt
-            
-    #        print timeDataM.size
-    #        print timeDataT.size        
-            
-            # load profile data
-            if firstFile:
-    #            timeMaster = np.arange(np.floor(np.min((timeDataM[0],timeDataT[0]))),np.floor(np.min((timeDataM[0],timeDataT[0]))),tres)
-                
-                Molecular = lp.LidarProfile(mol_data.T,timeDataM,label='Molecular Backscatter Channel',descript = 'Unpolarization\nMolecular Backscatter Returns',bin0=-Roffset/dR,lidar='DLB-HSRL',shot_count=shots_m,binwidth=BinWidth,StartDate=ProcStart)
-#                RemMol = Molecular.time_resample(delta_t=tres,t0=HourLim[0]*3600,update=True,remainder=True)
-                RemMol = Molecular.time_resample(tedges=MasterTime,update=True,remainder=True)
-                
-                CombHi = lp.LidarProfile(hi_data.T,timeDataT,label='Total Backscatter Channel',descript = 'Unpolarization\nHigh Gain\nCombined Aerosol and Molecular Returns',bin0=-Roffset/dR,lidar='DLB-HSRL',shot_count=shots_t,binwidth=BinWidth,StartDate=ProcStart)
-#                RemCom = CombHi.time_resample(delta_t=tres,t0=HourLim[0]*3600,update=True,remainder=True)
-                RemCom = CombHi.time_resample(tedges=MasterTime,update=True,remainder=True)
-                
-                firstFile = False
-                
-                
-                
-            else:
-#                timeMaster = np.arange(Molecular.time[0]+tres,np.floor(np.min((timeDataM[0],timeDataT[0]))),tres)
-                if np.size(RemMol.time) > 0:
-                    MolTmp = lp.LidarProfile(mol_data.T,timeDataM,label='Molecular Backscatter Channel',descript = 'Unpolarization\nMolecular Backscatter Returns',bin0=0,lidar='DLB-HSRL',shot_count=shots_m,binwidth=BinWidth,StartDate=ProcStart)
-                    MolTmp.cat_time(RemMol)
-    #                mol_data = np.hstack((RemMol.profile.T,mol_data))
-    #                MolTmp = lp.LidarProfile(mol_data.T,dt*np.arange(mol_data.shape[1])+RemMol.time[-1]+Molecular.mean_dt,label='Molecular Backscatter Channel',descript = 'Unpolarization\nMolecular Backscatter Returns',bin0=0,lidar='DLB-HSRL')
-#                    RemMol = MolTmp.time_resample(delta_t=tres,t0=(Molecular.time[-1]+tres),update=True,remainder=True)
-                    RemMol = MolTmp.time_resample(tedges=MasterTime,update=True,remainder=True)
-                    Molecular.cat_time(MolTmp,front=False)
-                    
-                    ComTmp = lp.LidarProfile(hi_data.T,timeDataT,label='Total Backscatter Channel',descript = 'Unpolarization\nHigh Gain\nCombined Aerosol and Molecular Returns',bin0=0,lidar='DLB-HSRL',shot_count=shots_t,binwidth=BinWidth,StartDate=ProcStart)
-                    ComTmp.cat_time(RemCom)
-    #                hi_data = np.hstack((RemCom.profile.T,hi_data))
-    #                ComTmp = lp.LidarProfile(hi_data.T,dt*np.arange(hi_data.shape[1])+RemCom.time[-1]+CombHi.mean_dt,label='Total Backscatter Channel',descript = 'Unpolarization\nHigh Gain\nCombined Aerosol and Molecular Returns',bin0=0,lidar='DLB-HSRL')
-#                    RemCom = ComTmp.time_resample(delta_t=tres,t0=(CombHi.time[-1]+tres),update=True,remainder=True)
-                    RemCom = ComTmp.time_resample(tedges=MasterTime,update=True,remainder=True)
-                    CombHi.cat_time(ComTmp,front=False)
-                else:
-                    MolTmp = lp.LidarProfile(mol_data.T,timeDataM,label='Molecular Backscatter Channel',descript = 'Unpolarization\nMolecular Backscatter Returns',bin0=0,lidar='DLB-HSRL',shot_count=shots_m,binwidth=BinWidth,StartDate=ProcStart)
-    #                MolTmp = lp.LidarProfile(mol_data.T,dt*np.arange(mol_data.shape[1])+Molecular.time[-1]+Molecular.mean_dt,label='Molecular Backscatter Channel',descript = 'Unpolarization\nMolecular Backscatter Returns',bin0=0,lidar='DLB-HSRL')
-#                    RemMol = MolTmp.time_resample(delta_t=tres,t0=(Molecular.time[-1]+tres),update=True,remainder=True)
-                    RemMol = MolTmp.time_resample(tedges=MasterTime,update=True,remainder=True)
-                    Molecular.cat_time(MolTmp,front=False)
-                    
-                    ComTmp = lp.LidarProfile(hi_data.T,timeDataT,label='Total Backscatter Channel',descript = 'Unpolarization\nHigh Gain\nCombined Aerosol and Molecular Returns',bin0=0,lidar='DLB-HSRL',shot_count=shots_t,binwidth=BinWidth,StartDate=ProcStart)                
-    #                ComTmp = lp.LidarProfile(hi_data.T,dt*np.arange(hi_data.shape[1])+CombHi.time[-1]+CombHi.mean_dt,label='Total Backscatter Channel',descript = 'Unpolarization\nHigh Gain\nCombined Aerosol and Molecular Returns',bin0=0,lidar='DLB-HSRL')
-#                    RemCom = ComTmp.time_resample(delta_t=tres,t0=(CombHi.time[-1]+tres),update=True,remainder=True)
-                    RemCom = ComTmp.time_resample(tedges=MasterTime,update=True,remainder=True)
-                    CombHi.cat_time(ComTmp,front=False)
-                    
-            
-#            print(Molecular.profile.shape)
-#            print(CombHi.profile.shape)
-
-
-# Update the HourLim definition to account for multiple days.  Plots use this
-# to display only the desired plot portion.
-HourLim = np.array([Hours[0,0],Hours[1,-1]+deltat_0*24])
+[Molecular,CombHi],lambda_hsrl,HourLim = wv.Load_DLB_Data(basepath,FieldLabel,[MolFileBase,CombFileBase],MasterTime,Years,Months,Days,Hours,MCSbins,lidar='DLB-HSRL',dt=dt,Roffset=Roffset,BinWidth=BinWidth)
 
 Molecular.slice_time(HourLim*3600)
 MolRaw = Molecular.copy()
@@ -289,23 +201,23 @@ CombRaw.slice_range_index(range_lim=[1,1e6])  # remove bottom bin
 
 #plt.figure(); 
 #plt.plot(np.sum(CombHi.profile[3600:,:],axis=0)/np.sum(Molecular.profile[3600:,:],axis=0),'.');
-
-if use_diff_geo:
-    #MolGain = 2.00;  # GeoCorrect prior to 12/12/2016
-#    MolGain = 2.25;  # Correction after 12/12/2016
-#    MolGain = 1.20;  # Correction after 12/19/2016
-#    MolGain = 1.0/0.397# /64.8#2.68  # Correction after 12/21/2016
-#    MolGain = 1.58/1.13  # Gain used for Scott's profile from 12/27 and additional clear data in surrounding days
-    MolGain = 1.33  # Gain updated 1/18/2016 based in very clear integrated retrievals between 0-16UTC
-#    MolGain = 2.8789  # Gain used for Scott's profile from 3/1/2017 and additional clear data in surrounding days
-else:
-#    MolGain = 1.0/9*2.25*1.1*1.25  # No diff_geo
-#    MolGain = 1.0/9*2.25*1.1*1.25/1.39 #*1.76  # No diff_geo After Dec. 19, 2016
-#    MolGain = 1.3/9*2.25*1.1*1.25/1.39 # # No diff_geo starting Dec. 21, 2016
+#
+#if use_diff_geo:
+#    #MolGain = 2.00;  # GeoCorrect prior to 12/12/2016
+##    MolGain = 2.25;  # Correction after 12/12/2016
+##    MolGain = 1.20;  # Correction after 12/19/2016
+##    MolGain = 1.0/0.397# /64.8#2.68  # Correction after 12/21/2016
+##    MolGain = 1.58/1.13  # Gain used for Scott's profile from 12/27 and additional clear data in surrounding days
+#    MolGain = 1.33  # Gain updated 1/18/2016 based in very clear integrated retrievals between 0-16UTC
+##    MolGain = 2.8789  # Gain used for Scott's profile from 3/1/2017 and additional clear data in surrounding days
+#else:
+##    MolGain = 1.0/9*2.25*1.1*1.25  # No diff_geo
+##    MolGain = 1.0/9*2.25*1.1*1.25/1.39 #*1.76  # No diff_geo After Dec. 19, 2016
+##    MolGain = 1.3/9*2.25*1.1*1.25/1.39 # # No diff_geo starting Dec. 21, 2016
 #    MolGain = 1.2821          # after Dec. 21, 2016 18.5 UTC - switched to 70/30 splitter
-#    MolGain = 1.33          # after April. 14, 2017 mode scrambler
-    MolGain = 3.17          # after May 12, 2017 - combined with WV DIAL
-#    MolGain = 1.0
+##    MolGain = 1.33          # after April. 14, 2017 mode scrambler
+##    MolGain = 3.17          # after May 12, 2017 - combined with WV DIAL
+##    MolGain = 1.0
     
 
 

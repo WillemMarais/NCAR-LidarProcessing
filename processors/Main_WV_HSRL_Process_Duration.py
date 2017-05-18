@@ -21,8 +21,12 @@ import scipy.interpolate
 import FourierOpticsLib as FO
 
 import datetime
+import json
 
 #import glob
+
+cal_path = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/'
+cal_file = cal_path+'dlb_calvals_msu.json'
 
 Years,Months,Days,Hours = lp.generate_WVDIAL_day_list(2017,5,12,startHr=0,duration=24)
 
@@ -46,7 +50,8 @@ use_mask = False
 SNRmask = 0.0  #SNR level used to decide what data points we keep in the final data product
 countLim = 2.0
 
-ProcStart = datetime.date(Years[0],Months[0],Days[0])
+#ProcStart = datetime.date(Years[0],Months[0],Days[0])
+ProcStart = datetime.datetime(Years[0],Months[0],Days[0],Hours[0][0])
 
 DateLabel = ProcStart.strftime("%A %B %d, %Y")
 
@@ -60,11 +65,31 @@ tres_wv = 0.5*60.0
 zres = 1.0  # resolution in altitude points (75 m)
 
 
-MCSbins = 280*2  # number of bins in a range resolved profile,  280-typical became 1400 on 2/22/2017
-BinWidth = 250e-9 # MCS timing bin width in seconds.  typically 500e-9 before April ?.  250e-9 after April ?
+with open(cal_file,"r") as f:
+    cal_jdata = json.loads(f.read())
+f.close()
+
+MCSbins = lp.get_calval(ProcStart,cal_jdata,'MCS bins')[0]
+BinWidth = lp.get_calval(ProcStart,cal_jdata,'Bin Width')[0]
+dt = lp.get_calval(ProcStart,cal_jdata,'Data Time Resolution')[0]
+LaserPulseWidth = lp.get_calval(ProcStart,cal_jdata,'Laser Pulse Width')[0]
+
+if use_diff_geo:
+    cal_value = lp.get_calval(ProcStart,cal_jdata,'Molecular Gain',cond=['diff_geo','!=','none'],returnlist=['value','diff_geo'])
+    diff_geo_file = cal_path+cal_value[1]
+else:
+    cal_value = lp.get_calval(ProcStart,cal_jdata,'Molecular Gain',cond=['diff_geo','=','none'])
+MolGain = cal_value[0]
+
+
 dR = BinWidth*lp.c/2  # profile range resolution (500e-9*c/2)-typical became 100e-9*c/2 on 2/22/2017
-dt = 2  # profile accumulation time
-Roffset = ((1.25+0.5)-0.5/2)*150  # offset in range
+Roffset = ((1.25+0.5)-0.5/2)*lp.c*LaserPulseWidth  # offset in range
+
+#MCSbins = 280*2  # number of bins in a range resolved profile,  280-typical became 1400 on 2/22/2017
+#BinWidth = 250e-9 # MCS timing bin width in seconds.  typically 500e-9 before April ?.  250e-9 after April ?
+#dR = BinWidth*lp.c/2  # profile range resolution (500e-9*c/2)-typical became 100e-9*c/2 on 2/22/2017
+#dt = 2  # profile accumulation time
+#Roffset = ((1.25+0.5)-0.5/2)*150  # offset in range
 
 BGIndex = -50; # negative number provides an index from the end of the array
 Cam = 0.00 # Cross talk of aerosols into the molecular channel - 0.005 on Dec 21 2016 after 18.5UTC
@@ -126,8 +151,11 @@ MasterTimeWV = np.arange(Hours[0,0]*3600,Days.size*24*3600-(24-Hours[-1,-1])*360
 [Molecular,CombHi],lambda_hsrl,HourLim = wv.Load_DLB_Data(basepath,FieldLabel_HSRL,[MolFileBase,CombFileBase],MasterTimeHSRL,Years,Months,Days,Hours,MCSbins,lidar='DLB-HSRL',dt=dt,Roffset=Roffset,BinWidth=BinWidth)
 [OnLine,OffLine],[lambda_on,lambda_off],HourLim = wv.Load_DLB_Data(basepath,FieldLabel_WV,[ON_FileBase,OFF_FileBase],MasterTimeWV,Years,Months,Days,Hours,MCSbins,lidar='WV-DIAL',dt=dt,Roffset=Roffset,BinWidth=BinWidth)
 
+#lp.pcolor_profiles([OnLine,OffLine],climits=[[-8.0,-4.0],[-8.0,-4.0]],scale=['log','log'],plotAsDays=plotAsDays) 
+#lp.plotprofiles([OnLine,OffLine])
+
 # WV-DIAL
-#OnLine.mask_range('index',np.arange(2))
+OnLine.mask_range('index',np.arange(2))
 OnLine.conv(5.0*60.0/tres_wv,4.0)
 OnLine.mask_range('<=',300)
 OnLine.slice_time(HourLim*3600)
@@ -135,7 +163,7 @@ OnLineRaw = OnLine.copy()
 #OnLine.nonlinear_correct(30e-9);
 OnLine.bg_subtract(BGIndex)
 
-#OffLine.mask_range('index',np.arange(2))
+OffLine.mask_range('index',np.arange(2))
 OffLine.conv(5.0*60.0/tres_wv,4.0)
 OffLine.mask_range('<=',300)
 OffLine.slice_time(HourLim*3600)

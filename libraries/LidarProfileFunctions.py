@@ -543,12 +543,12 @@ class LidarProfile():
             range_mask[:,limits] = 1 
             range_mask_defined = True
             StatusString = 'Range Mask Applied based on supplied range indices'
-        if type_str == 'less than' or '<':
+        elif type_str == 'less than' or '<':
             range_mask = np.zeros(self.profile.shape)
             range_mask[:,np.nonzero(self.range_array < limits)[0]] = 1
             range_mask_defined = True
             StatusString = 'Range Mask Applied on range < %.1f m'%(limits)
-        if type_str == 'less than or equal' or '<=':
+        elif type_str == 'less than or equal' or '<=':
             range_mask = np.zeros(self.profile.shape)
             range_mask[:,np.nonzero(self.range_array <= limits)[0]] = 1
             range_mask_defined = True
@@ -2190,25 +2190,89 @@ def get_beta_m_sonde(Profile,Years,Months,Days,sonde_basepath,interp=False,retur
     
         return beta_mol,tref,sonde_index_u,temp,pres,sonde_index
     
-    #beta_m_sondes0 = 5.45*(550.0/Molecular.wavelength)**4*1e-32*PresDat[sonde_index_u,:]/(TempDat[sonde_index_u,:]*lp.kB)
+
+
+def get_calval(data_date,json_data,cal_name,cond = [],returnlist=['value']):
+    """
+    retrieve the best value for a calibration value based on the date
+    of the data under processing
     
-#    pres_func = scipy.interpolate.interp2d(tref[sonde_index_u,np.newaxis]*np.ones(SondeAlt[sonde_index_u,:].shape),SondeAlt[sonde_index_u,:]-StatElev[sonde_index_u,np.newaxis],np.log10(PresDat[sonde_index_u,:]))    
-#    temp_func = scipy.interpolate.interp2d(tref[sonde_index_u,np.newaxis]*np.ones(SondeAlt[sonde_index_u,:].shape),SondeAlt[sonde_index_u,:]-StatElev[sonde_index_u,np.newaxis],TempDat[sonde_index_u,:])  
-#    #beta_m_func = scipy.interpolate.interp2d(tref[sonde_index_u,np.newaxis]*np.ones(SondeAlt[sonde_index_u,:].shape),SondeAlt[sonde_index_u,:]-StatElev[sonde_index_u,np.newaxis],beta_m_sondes0)    
-#    
-#    rr,tt = np.meshgrid(Profile.range_array,Profile.time)
-#    beta_m_sonde_func = 5.45*(550.0/Molecular.wavelength)**4*1e-32*10**(pres_func(tt.flatten(),rr.flatten()))/(temp_func(tt.flatten(),rr.flatten())*lp.kB)
+    data_date - datetime of the processed data
+    json_data - calibration data loaded from the json file
+    cal_name - string giving the library look-up for the calibration
+    cond - additional conditions.  e.g. use ['diff_geo','=','none'] to require
+        the Molecular Gain has no diff_geo associated with it.
+        ['diff_geo','!=','none'] means the diff_geo cannot equal 'none'
+        cond only accepts an 'equal' or 'not equal' argument.  It can't handle
+        'greater than' or 'less than' and will treat them as 'not equal'.
+    returnlist - list of the fields to be returned.  defaults to just the
+        value of the calibration variable
+    """
     
+    min_time = 1e15
+    cal_index = 1
+    # for some calibrations, we need to check if the change is 'abrupt' or 'gradual'
+    if len(cond) > 0:
+        if cond[1] == '=':
+            test_not_equal = False
+        else:
+            test_not_equal = True
+    else:
+        test_not_equal = False
+            
+    if cal_name == 'Molecular Gain':        
+        for ai in range(len(json_data[cal_name])):
+            if len(cond) == 0:
+                cond_true = True
+            elif boolean_not_switch(json_data[cal_name][ai][cond[0]]==cond[2],test_not_equal):
+                cond_true = True
+            else:
+                cond_true = False
+            
+            if cond_true:
+                time_diff = (data_date-json_str_to_datetime(json_data[cal_name][ai]['date'])).total_seconds()
+                if json_data[cal_name][ai]['change type']  == 'abrupt' and time_diff >= 0 and time_diff < min_time:
+                    cal_index = ai
+                    min_time = time_diff
+                elif np.abs(time_diff) < min_time:
+                    cal_index = ai
+                    min_time = np.abs(time_diff)
+    else:
+        for ai in range(len(json_data[cal_name])):
+            if len(cond) == 0:
+                cond_true = True
+            elif boolean_not_switch(json_data[cal_name][ai][cond[0]]==cond[2],test_not_equal):
+                cond_true = True
+            else:
+                cond_true = False
+            
+            if cond_true:
+                time_diff = (data_date-json_str_to_datetime(json_data[cal_name][ai]['date'])).total_seconds()
+                if np.abs(time_diff) < min_time:
+                    cal_index = ai
+                    min_time = np.abs(time_diff)  
     
+    return_data = []
+    for ai in range(len(returnlist)):
+        return_data.extend([json_data[cal_name][cal_index][returnlist[ai]]])
+                    
+    return return_data
+
+def json_str_to_datetime(json_str):
+    json_datetime = datetime.datetime.strptime(json_str,'%d-%b-%Y, %H:%M')
+    return json_datetime
     
-##    sonde_index = np.min([np.shape(SondeAlt)[0]-1,sonde_index])
-#    Tsonde = np.interp(CombHi.range_array,SondeAlt[sonde_index,:]-StatElev[sonde_index],TempDat[sonde_index,:])
-#    Psonde = np.unique(isonde)
-#    # Obtain sonde data for backscatter coefficient estimation
-#    Tsonde = np.interp(CombHi.range_array,SondeAlt[sonde_index,:]-StatElev[sonde_index],TempDat[sonde_index,:])
-#    Psonde = np.interp(CombHi.range_array,SondeAlt[sonde_index,:]-StatElev[sonde_index],PresDat[sonde_index,:])
+def boolean_not_switch(in_bool,switch):
+    """
+    Switch that determines whether to not an expression
+    if switch == True
+    in_bool is not-ed
     
-    
-    
-#    # note the operating wavelength of the lidar is 532 nm
-#    beta_m_sonde = sonde_scale*5.45*(550.0/780.24)**4*1e-32*Psonde/(Tsonde*lp.kB)
+    if switch == False
+    in_bool is unchanged
+    """
+    if switch:
+        ret_bool = not in_bool
+    else:
+        ret_bool = in_bool
+    return ret_bool
