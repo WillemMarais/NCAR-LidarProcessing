@@ -18,15 +18,16 @@ import WVProfileFunctions as wv
 import datetime
 import json
 
-import glob
+#import glob
 
-cal_path = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/'
+"""
+USER INPUTS
+"""
+
+cal_path = '/h/eol/mhayman/PythonScripts/NCAR-LidarProcessing/calibrations/'
 cal_file = cal_path+'dlb_calvals_msu.json'
 
-Years,Months,Days,Hours = lp.generate_WVDIAL_day_list(2017,5,17,startHr=20,duration=4)  # WV-DIAL RD Correction ,startHr=5,duration=4.0
-#Years,Months,Days,Hours = lp.generate_WVDIAL_day_list(2017,4,18,startHr=4.5,stopHr=5.4)  # WV-DIAL RD Correction ,startHr=5,duration=4.0
-
-#Years,Months,Days,Hours = lp.generate_WVDIAL_day_list(2017,1,12,stopDay=19)
+Years,Months,Days,Hours = lp.generate_WVDIAL_day_list(2017,5,17,startHr=20,duration=4)
 
 plotAsDays = False
 getMLE_extinction = False
@@ -40,17 +41,12 @@ nctag = ''  # additional tag for netcdf and figure filename
 
 run_geo_cal = False
 
-#ProcStart = datetime.date(Years[0],Months[0],Days[0])
-ProcStart = datetime.datetime(Years[0],Months[0],Days[0],Hours[0][0])
-
-DateLabel = ProcStart.strftime("%A %B %d, %Y")
-
 MaxAlt = 12e3 #12e3
 
 KlettAlt = 14e3  # altitude where Klett inversion starts
 
-tres = 1*60.0  # resolution in time points (2 sec)
-zres = 1.0  # resolution in altitude points (75 m)
+tres = 1*60.0  # time resolution in seconds (2 sec typical base)
+zres = 75  # range resolution in m (37.5 m typical base)
 
 use_diff_geo = False   # no diff geo correction after April ???
 use_geo = True
@@ -58,6 +54,16 @@ use_geo = True
 use_mask = False
 SNRmask = 0.0  #SNR level used to decide what data points we keep in the final data product
 countLim = 2.0
+
+
+"""
+Begin Processing
+"""
+
+
+ProcStart = datetime.datetime(Years[0],Months[0],Days[0],Hours[0][0])
+
+DateLabel = ProcStart.strftime("%A %B %d, %Y")
 
 with open(cal_file,"r") as f:
     cal_jdata = json.loads(f.read())
@@ -75,44 +81,27 @@ else:
     cal_value = lp.get_calval(ProcStart,cal_jdata,'Molecular Gain',cond=['diff_geo','=','none'])
 MolGain = cal_value[0]
     
-
-#MCSbins = 2*280  # number of bins in a range resolved profile,  280-typical became 1400 on 2/22/2017.  After April ? use 2*280 when binwidths were changed to 250e-9.
-#BinWidth = 250e-9 # MCS timing bin width in seconds.  typically 500e-9 before April ?.  250e-9 after April ?
-#dt = 2  # profile accumulation time in seconds
+if use_geo:
+    cal_value = lp.get_calval(ProcStart,cal_jdata,'Geo File Record',returnlist=['filename'])
+    geo_file = cal_path+cal_value[0]
 
 dR = BinWidth*lp.c/2  # profile range resolution (500e-9*c/2)-typical became 100e-9*c/2 on 2/22/2017
-Roffset = ((1.25+0.5)-0.5/2)*lp.c*LaserPulseWidth  # offset in range
+Roffset = ((1.25+0.5)-0.5/2)*lp.c*LaserPulseWidth/2  # offset in range
 
 BGIndex = -50; # negative number provides an index from the end of the array
 Cam = 0.00 # Cross talk of aerosols into the molecular channel - 0.005 on Dec 21 2016 after 18.5UTC
             # 0.033 found for 4/18/2017 11UTC extinction test case
+
+zres = np.max([np.round(zres/dR),1.0])*dR  #only allow z resolution to be integer increments of the MCS range
 
 save_data_path = '/h/eol/mhayman/HSRL/DLBHSRL/Processed_Data/'
 save_fig_path = '/h/eol/mhayman/HSRL/DLBHSRL/Processed_Data/Plots/'
 sonde_path = '/scr/eldora1/HSRL_data/'
 
 
-#diff_geo_file = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/diff_geo_DLB_20161212.npz'
-#diff_geo_file = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/diff_geo_DLB_20161219_2.npz'
-#diff_geo_file = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/diff_geo_DLB_20161221_2.npz'
-#diff_geo_file = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/diff_geo_DLB_20161227.npz'  #Provided by Scott
-#diff_geo_file = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/diff_geo_DLB_20170301.npz'  #Provided by Scott
-#diff_geo_file = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/diff_geo_DLB_20170222.npz'  #Update with Zeeman calibration
-
-diff_geo_data = np.load(diff_geo_file)
-diff_geo_corr = diff_geo_data['diff_geo_prof']
-#diff_lim_index = 14  # correction is not applied below this index - used on 20161219_2
-#diff_geo_corr[:diff_lim_index] = 1.2/(1.0/9*2.25*1.1*1.25/1.39)
-
-#geo_file = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/geo_DLB_20161219.npz'
-#geo_file = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/geo_DLB_20161213.npz'
-#geo_file = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/geo_DLB_20161227.npz'
-#geo_file = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/geo_DLB_20161227.npz'
-#geo_file = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/geo_DLB_20170119.npz'
-#geo_file = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/geo_DLB_20170120_0.npz'  # obtained using OD, includes variance in profile
-#geo_file = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/geo_DLB_20170413.npz'  # obtained using OD, includes variance in profile
-#geo_file = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/geo_DLB_20170418.npz'  # obtained using OD, includes variance in profile
-geo_file = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/geo_DLB_20170512.npz'  # obtained using OD, includes variance in profile
+if use_diff_geo:
+    diff_geo_data = np.load(diff_geo_file)
+    diff_geo_corr = diff_geo_data['diff_geo_prof']
 
 if use_geo:
     geo_data = np.load(geo_file)
@@ -175,7 +164,7 @@ if use_mask:
 #    Molecular.geo_overlap_correct(geo_corr)
 Molecular.range_correct();
 Molecular.slice_range(range_lim=[0,MaxAlt])
-Molecular.range_resample(delta_R=zres*dR,update=True)
+Molecular.range_resample(delta_R=zres,update=True)
 Molecular.slice_range_index(range_lim=[1,1e6])  # remove bottom bin
 #Molecular.conv(1.5,2.0)  # regrid by convolution
 MolRaw.slice_range_index(range_lim=[1,1e6])  # remove bottom bin
@@ -187,14 +176,14 @@ if use_diff_geo:
 #    CombHi.geo_overlap_correct(geo_corr)
 CombHi.range_correct()
 CombHi.slice_range(range_lim=[0,MaxAlt])
-CombHi.range_resample(delta_R=zres*dR,update=True)
+CombHi.range_resample(delta_R=zres,update=True)
 CombHi.slice_range_index(range_lim=[1,1e6])  # remove bottom bin
 #CombHi.conv(1.5,2.0)  # regrid by convolution
 
 # if running the Klett inversion, the raw data is used and we need it to be on the same range grid as the sondes
 if runKlett:
     CombRaw.slice_range(range_lim=[0,MaxAlt])
-    CombRaw.range_resample(delta_R=zres*dR,update=True)
+    CombRaw.range_resample(delta_R=zres,update=True)
 
 CombRaw.slice_range_index(range_lim=[1,1e6])  # remove bottom bin
 

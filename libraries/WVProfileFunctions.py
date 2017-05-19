@@ -78,6 +78,11 @@ def WaterVapor_Simple(OnLine,OffLine,Psonde,Tsonde):
     nWV.descript = 'Water Vapor Number Density'
     nWV.profile_type = '$m^{-3}$'
     nWV.range_array = range_diff
+    nWV.profile_variance = (0.5/(dsig)/OnLine.mean_dR)**2*( \
+        OnLine.profile_variance[:,1:]/OnLine.profile[:,1:] - \
+        OnLine.profile_variance[:,:-1]/OnLine.profile[:,:-1] - \
+        OffLine.profile_variance[:,1:]/OffLine.profile[:,1:] + \
+        OffLine.profile_variance[:,:-1]/OffLine.profile[:,:-1])
     
     # convert to g/m^3
     nWV.gain_scale(lp.mH2O/lp.N_A)  

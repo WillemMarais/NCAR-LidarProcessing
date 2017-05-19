@@ -791,22 +791,40 @@ class LidarProfile():
         self.ProcessingStatus.extend(['Profile Rescaled by %f'%gain])
     
     def get_conv_kernel(self,sigt,sigz,norm=True):
+        """
+        Generates a Gaussian convolution kernel for
+        standard deviations sigt and sigz in units of grid points.
+        This should probably be moved to be an independent function
+        """        
+        
         t = np.arange(-np.round(4*sigt),np.round(4*sigt))      
         z = np.arange(-np.round(4*sigz),np.round(4*sigz))  
-        zz,tt = np.meshgrid(z,t)
         
-        kconv = np.exp(-tt**2*1.0/(sigt**2)-zz**2*1.0/(sigz**2))
+        kconv_t = np.exp(-t**2*1.0/(sigt**2))
+        if np.sum(kconv_t) == 0:
+            it0 = np.argmin(np.abs(t))
+            kconv_t[it0] = 1.0
+            
+        kconv_z = np.exp(-z**2*1.0/(sigz**2))
+        if np.sum(kconv_z) == 0:
+            iz0 = np.argmin(np.abs(z))
+            kconv_z[iz0] = 1.0
+            
+        kconv = kconv_t[:,np.newaxis]*kconv_z[np.newaxis,:]
+        
+#        zz,tt = np.meshgrid(z,t)
+#        kconv = np.exp(-tt**2*1.0/(sigt**2)-zz**2*1.0/(sigz**2))
         if norm:
             kconv = kconv/(1.0*np.sum(kconv))
         
-        return zz,tt,kconv
+        return z,t,kconv
         
-    def conv(self,sigt,sigz):
+    def conv(self,sigt,sigz,keep_mask=True):
         """
         Convolve a Gaussian with std sigt in the time dimension (in points)
         and sigz in the altitude dimension (also in points)
         """
-        zz,tt,kconv = self.get_conv_kernel(sigt,sigz,norm=False)
+        z,t,kconv = self.get_conv_kernel(sigt,sigz,norm=True)
         
         # Replaced code with get_conv_kernel
 #        t = np.arange(-np.round(4*sigt),np.round(4*sigt))      
@@ -817,16 +835,22 @@ class LidarProfile():
 #        kconv = kconv/(1.0*np.sum(kconv))
         
         if hasattr(self.profile,'mask'):
-            scale = np.ma.array(np.ones(self.profile.shape),mask=self.profile.mask)
+            prof_mask = self.profile.mask
+            scale = np.ma.array(np.ones(self.profile.shape),mask=prof_mask)
             scale = scipy.signal.convolve2d(scale.filled(0),kconv,mode='same')  # adjustment factor for the number of points included due to masking
             self.profile = scipy.signal.convolve2d(self.profile.filled(0),kconv,mode='same')/scale
+            if keep_mask:
+                self.profile = np.ma.array(self.profile,mask=prof_mask)
         else:
             self.profile = scipy.signal.convolve2d(self.profile,kconv,mode='same')
         
         if hasattr(self.profile_variance,'mask'):
-#            scale = np.ma.array(np.ones(self.profile.shape),mask=self.profile_variance.mask)
-#            scale = scipy.signal.convolve2d(scale.filled(0),kconv,mode='same')  # adjustment factor for the number of points included due to masking
-            self.profile_variance = scipy.signal.convolve2d(self.profile_variance.filled(0),kconv**2,mode='same')
+            prof_mask = self.profile_variance.mask
+            scale = np.ma.array(np.ones(self.profile_variance.shape),mask=prof_mask)
+            scale = scipy.signal.convolve2d(scale.filled(0),kconv,mode='same')  # adjustment factor for the number of points included due to masking
+            self.profile_variance = scipy.signal.convolve2d(self.profile_variance.filled(0),kconv**2,mode='same')/scale**2
+            if keep_mask:
+                self.profile = np.ma.array(self.profile,mask=prof_mask)
         else:
             self.profile_variance = scipy.signal.convolve2d(self.profile_variance,kconv**2,mode='same')
         
@@ -2220,7 +2244,7 @@ def get_calval(data_date,json_data,cal_name,cond = [],returnlist=['value']):
     else:
         test_not_equal = False
             
-    if cal_name == 'Molecular Gain':        
+    if cal_name == 'Molecular Gain' or cal_name == 'Geo File Record':        
         for ai in range(len(json_data[cal_name])):
             if len(cond) == 0:
                 cond_true = True

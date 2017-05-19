@@ -1,0 +1,54 @@
+{
+	"MCS bins": [
+		{"date": "7-Dec-2016, 0:0","value": 280},
+		{"date": "22-Feb-2017, 0:0","value": 1400},
+		{"date": "8-Apr-2017, 0:0","value": 560}
+	],
+
+	"Bin Width": [
+		{"date": "7-Dec-2016, 0:0","value": 500e-9, "units":"seconds"},
+		{"date": "22-Feb-2017, 0:0","value": 100e-9, "units":"seconds"},
+		{"date": "8-Apr-2017, 0:0","value": 250e-9, "units":"seconds"}
+	],
+
+	"Molecular Gain": [
+		{"date": "7-Dec-2016, 0:0","value": 2.0, "diff_geo": "unknown", "change type": "abrupt"},
+		{"date": "12-Dec-2016, 0:0","value": 2.25, "diff_geo": "diff_geo_DLB_20161212.npz", "change type": "abrupt", "notes": ""},
+		{"date": "19-Dec-2016, 0:0","value": 1.2, "diff_geo": "diff_geo_DLB_20161219_2.npz", "change type": "abrupt", "notes": ""},	
+		{"date": "21-Dec-2016, 0:0","value": 2.5188916876574305, "diff_geo": "diff_geo_DLB_20161221_2.npz", "change type": "abrupt", "notes": ""},
+		{"date": "27-Dec-2016, 0:0","value": 1.3982300884955754, "diff_geo": "diff_geo_DLB_20161227.npz", "change type": "abrupt", "notes": "diff geo Provided by Scott"},
+		{"date": "18-Jan-2017, 0:0","value": 1.33, "diff_geo": "diff_geo_DLB_20161227.npz", "change type": "gradual", "notes": "diff geo Provided by Scott"},
+		{"date": "22-Feb-2017, 0:0","value": 1.33, "diff_geo": "diff_geo_DLB_20170222.npz", "change type": "gradual", "notes": "diff geo with Update with Zeeman calibration"},
+		{"date": "1-Mar-2017, 0:0","value": 2.8789, "diff_geo": "diff_geo_DLB_20170301.npz", "change type": "gradual", "notes": ""},
+
+		{"date": "7-Dec-2016, 0:0","value": 0.34375, "diff_geo": "none", "change type": "abrupt", "notes": ""},
+		{"date": "19-Dec-2016, 0:0","value": 0.2473021582733813, "diff_geo": "none", "change type": "abrupt", "notes": ""},
+		{"date": "21-Dec-2016, 0:0","value": 0.32149280575539574, "diff_geo": "none", "change type": "abrupt", "notes": ""},
+		{"date": "21-Dec-2016, 18:30","value": 1.2821, "diff_geo": "none", "change type": "abrupt", "notes": ""},
+		{"date": "14-Apr-2017, 0:0","value": 1.33, "diff_geo": "none", "change type": "abrupt", "notes": ""},
+		{"date": "5-May-2017, 0:0","value": 3.17, "diff_geo": "none", "change type": "abrupt", "notes": ""}
+	],
+
+	"Geo File Record": [
+		{"date": "20-Jan-2017, 0:0","value": 0.0, "filename": "geo_DLB_20170120_0.npz", "change type": "gradual", "notes": ""},
+		{"date": "13-Apr-2017, 0:0","value": 0.0, "filename": "geo_DLB_20170413.npz", "change type": "abrupt", "notes": ""},
+		{"date": "18-Apr-2017, 0:0","value": 0.0, "filename": "geo_DLB_20170418.npz", "change type": "gradual", "notes": ""},
+		{"date": "5-May-2017, 0:0","value": 0.0, "filename": "geo_DLB_20170512.npz", "change type": "abrupt", "notes": ""}
+	],
+
+	"Data Time Resolution": [
+		{"date": "7-Dec-2016, 0:0","value": 2, "units":"seconds"}
+	],
+
+	"Laser Pulse Width": [
+		{"date": "7-Dec-2016, 0:0","value": 0.9e-6, "units":"seconds"}
+	],
+
+	"Comments": [
+		{"date": "21-Dec-2016, 0:0", "value": "Switched to 70/30 beam splitter"},
+		{"date": "20-Jan-2017, 0:0", "value": "Begin including uncertainty in geo calibrations"},
+		{"date": "8-Apr-2017, 0:0", "value": "Date Approximate.  Changed MCS to have 37.5 m resolution"},
+		{"date": "5-May-2017, 0:0","value": "Integrated WV-DIAL with DLB-HSRL"}
+	]
+
+}

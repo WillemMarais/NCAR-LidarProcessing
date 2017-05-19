@@ -25,7 +25,11 @@ import json
 
 #import glob
 
-cal_path = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/'
+"""
+USER INPUTS
+"""
+
+cal_path = '/h/eol/mhayman/PythonScripts/NCAR-LidarProcessing/calibrations/'
 cal_file = cal_path+'dlb_calvals_msu.json'
 
 Years,Months,Days,Hours = lp.generate_WVDIAL_day_list(2017,5,12,startHr=0,duration=24)
@@ -50,20 +54,28 @@ use_mask = False
 SNRmask = 0.0  #SNR level used to decide what data points we keep in the final data product
 countLim = 2.0
 
-#ProcStart = datetime.date(Years[0],Months[0],Days[0])
-ProcStart = datetime.datetime(Years[0],Months[0],Days[0],Hours[0][0])
-
-DateLabel = ProcStart.strftime("%A %B %d, %Y")
-
 MaxAlt = 6e3 #12e3
+WV_Min_Alt = 350  # mask data below this altitude
 
 KlettAlt = 14e3  # altitude where Klett inversion starts
 
-#tres = 5.0*60.0  # resolution in time points (2 sec)
-tres_hsrl = 0.5*60.0
-tres_wv = 0.5*60.0
-zres = 1.0  # resolution in altitude points (75 m)
+# set bin sizes
+tres_hsrl = 0.5*60.0  # HSRL bin time resolution in seconds (2 sec typical base)
+tres_wv = 0.5*60.0    # HSRL bin time resolution in seconds (2 sec typical base)
+zres = 75  # bin range resolution in m (37.5 m typical base)
 
+# parameters for WV Channels smoothing
+tsmooth_wv = 5*60 # convolution kernal time (HW sigma) in seconds
+zsmooth_wv = 150  # convolution kernal range (HW sigma) in meters
+
+
+"""
+Begin Processing
+"""
+
+ProcStart = datetime.datetime(Years[0],Months[0],Days[0],Hours[0][0])
+
+DateLabel = ProcStart.strftime("%A %B %d, %Y")
 
 with open(cal_file,"r") as f:
     cal_jdata = json.loads(f.read())
@@ -81,15 +93,14 @@ else:
     cal_value = lp.get_calval(ProcStart,cal_jdata,'Molecular Gain',cond=['diff_geo','=','none'])
 MolGain = cal_value[0]
 
+if use_geo:
+    cal_value = lp.get_calval(ProcStart,cal_jdata,'Geo File Record',returnlist=['filename'])
+    geo_file = cal_path+cal_value[0]
 
 dR = BinWidth*lp.c/2  # profile range resolution (500e-9*c/2)-typical became 100e-9*c/2 on 2/22/2017
-Roffset = ((1.25+0.5)-0.5/2)*lp.c*LaserPulseWidth  # offset in range
+Roffset = ((1.25+0.5)-0.5/2)*lp.c*LaserPulseWidth/2  # offset in range
 
-#MCSbins = 280*2  # number of bins in a range resolved profile,  280-typical became 1400 on 2/22/2017
-#BinWidth = 250e-9 # MCS timing bin width in seconds.  typically 500e-9 before April ?.  250e-9 after April ?
-#dR = BinWidth*lp.c/2  # profile range resolution (500e-9*c/2)-typical became 100e-9*c/2 on 2/22/2017
-#dt = 2  # profile accumulation time
-#Roffset = ((1.25+0.5)-0.5/2)*150  # offset in range
+zres = np.max([np.round(zres/dR),1.0])*dR  #only allow z resolution to be integer increments of the MCS range
 
 BGIndex = -50; # negative number provides an index from the end of the array
 Cam = 0.00 # Cross talk of aerosols into the molecular channel - 0.005 on Dec 21 2016 after 18.5UTC
@@ -115,10 +126,6 @@ if save_as_nc or save_figs:
     ncfilename = save_data_path+ncfilename0
     figfilename = save_fig_path + ncfilename0[:-3] + nctag
 
-
-#geo_file = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/geo_DLB_20170413.npz'  # obtained using OD, includes variance in profile
-geo_file = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/geo_DLB_20170418.npz'  # obtained using OD, includes variance in profile
-
 if use_geo:
     geo_data = np.load(geo_file)
     geo_corr = geo_data['geo_prof']
@@ -138,15 +145,6 @@ else:
 MasterTimeHSRL = np.arange(Hours[0,0]*3600,Days.size*24*3600-(24-Hours[-1,-1])*3600,tres_hsrl)
 MasterTimeWV = np.arange(Hours[0,0]*3600,Days.size*24*3600-(24-Hours[-1,-1])*3600,tres_wv)
 
-#profHSRL,lambda_hsrl,HourLim = wv.Load_DLB_Data(basepath,FieldLabel_HSRL,[MolFileBase,CombFileBase],MasterTimeHSRL,Years,Months,Days,Hours,MCSbins,lidar='DLB-HSRL',dt=dt,Roffset=Roffset,BinWidth=BinWidth)
-#Molecular = profHSRL[0].copy()
-#CombHi = profHSRL[1].copy()
-
-#profWV,lambda_wv,HourLim = wv.Load_DLB_Data(basepath,FieldLabel_WV,[ON_FileBase,OFF_FileBase],MasterTimeWV,Years,Months,Days,Hours,MCSbins,lidar='WV-DIAL',dt=dt,Roffset=Roffset,BinWidth=BinWidth)
-#OnLine = profWV[0].copy()
-#OffLine = profWV[1].copy()
-#lambda_on = lambda_wv[0].copy()
-#lambda_off = lambda_wv[1].copy()
 
 [Molecular,CombHi],lambda_hsrl,HourLim = wv.Load_DLB_Data(basepath,FieldLabel_HSRL,[MolFileBase,CombFileBase],MasterTimeHSRL,Years,Months,Days,Hours,MCSbins,lidar='DLB-HSRL',dt=dt,Roffset=Roffset,BinWidth=BinWidth)
 [OnLine,OffLine],[lambda_on,lambda_off],HourLim = wv.Load_DLB_Data(basepath,FieldLabel_WV,[ON_FileBase,OFF_FileBase],MasterTimeWV,Years,Months,Days,Hours,MCSbins,lidar='WV-DIAL',dt=dt,Roffset=Roffset,BinWidth=BinWidth)
@@ -155,22 +153,23 @@ MasterTimeWV = np.arange(Hours[0,0]*3600,Days.size*24*3600-(24-Hours[-1,-1])*360
 #lp.plotprofiles([OnLine,OffLine])
 
 # WV-DIAL
-OnLine.mask_range('index',np.arange(2))
-OnLine.conv(5.0*60.0/tres_wv,4.0)
-OnLine.mask_range('<=',300)
-OnLine.slice_time(HourLim*3600)
 OnLineRaw = OnLine.copy()
+OnLine.mask_range('index',np.arange(1))
+OnLine.conv(tsmooth_wv/tres_wv,zsmooth_wv/zres,keep_mask=True)
+#OnLine.mask_range('<=',300)
+OnLine.slice_time(HourLim*3600)
 #OnLine.nonlinear_correct(30e-9);
 OnLine.bg_subtract(BGIndex)
 
-OffLine.mask_range('index',np.arange(2))
-OffLine.conv(5.0*60.0/tres_wv,4.0)
-OffLine.mask_range('<=',300)
-OffLine.slice_time(HourLim*3600)
 OffLineRaw = OffLine.copy()
+OffLine.mask_range('index',np.arange(1))
+OffLine.conv(5.0*60.0/tres_wv/2,4.0/2,keep_mask=True)
+#OffLine.mask_range('<=',300)
+OffLine.slice_time(HourLim*3600)
 #OffLine.nonlinear_correct(30e-9);
 OffLine.bg_subtract(BGIndex)
 
+#lp.plotprofiles([OnLine,OffLine,OnLineRaw,OffLineRaw])
 
 # HSRL
 Molecular.slice_time(HourLim*3600)
@@ -217,7 +216,7 @@ if use_mask:
 #    Molecular.geo_overlap_correct(geo_corr)
 #OnLine.range_correct();
 OnLine.slice_range(range_lim=[0,MaxAlt])
-OnLine.range_resample(delta_R=zres*dR,update=True)
+OnLine.range_resample(delta_R=zres,update=True)
 #OnLine.conv(5.0,0.7)  # regrid by convolution
 OnLine.slice_range_index(range_lim=[1,1e6])  # remove bottom bin
 
@@ -226,14 +225,14 @@ OnLine.slice_range_index(range_lim=[1,1e6])  # remove bottom bin
 #    OffLine.diff_geo_overlap_correct(diff_geo_corr,geo_reference='online')
 #OffLine.range_correct()
 OffLine.slice_range(range_lim=[0,MaxAlt])
-OffLine.range_resample(delta_R=zres*dR,update=True)
+OffLine.range_resample(delta_R=zres,update=True)
 #OffLine.conv(5.0,0.7)  # regrid by convolution
 OffLine.slice_range_index(range_lim=[1,1e6])  # remove bottom bin
 
 
 Molecular.range_correct();
 Molecular.slice_range(range_lim=[0,MaxAlt])
-Molecular.range_resample(delta_R=zres*dR,update=True)
+Molecular.range_resample(delta_R=zres,update=True)
 Molecular.slice_range_index(range_lim=[1,1e6])  # remove bottom bin
 #Molecular.conv(1.5,2.0)  # regrid by convolution
 MolRaw.slice_range_index(range_lim=[1,1e6])  # remove bottom bin
@@ -244,14 +243,14 @@ MolRaw.slice_range_index(range_lim=[1,1e6])  # remove bottom bin
 
 CombHi.range_correct()
 CombHi.slice_range(range_lim=[0,MaxAlt])
-CombHi.range_resample(delta_R=zres*dR,update=True)
+CombHi.range_resample(delta_R=zres,update=True)
 CombHi.slice_range_index(range_lim=[1,1e6])  # remove bottom bin
 #CombHi.conv(1.5,2.0)  # regrid by convolution
 CombRaw.slice_range_index(range_lim=[1,1e6])  # remove bottom bin
 
 # Rescale molecular channel to match combined channel gain
 #MolGain = 1.33  # updated 4/11/2017
-MolGain = 3.17  # updated 5/12/2017
+#MolGain = 3.17  # updated 5/12/2017
 Molecular.gain_scale(MolGain)
 
 # Correct Molecular Cross Talk
@@ -261,7 +260,13 @@ if Cam > 0:
 # add interpolated temperature and pressure
 beta_mol_sonde,sonde_time,sonde_index_prof,temp,pres,sonde_index = lp.get_beta_m_sonde(Molecular,Years,Months,Days,sonde_path,interp=True,returnTP=True)
 
+# convert pressure from Pa to atm.
+pres.gain_scale(9.86923e-6)  
+pres.descript = 'Sonde Measured Pressure in atm'
+pres.profile_type = '$atm.$'
 
+
+# Plot Integrated Profiles
 lp.plotprofiles([OffLine,OnLine,Molecular,CombHi])
 
 OnInt = OnLine.copy();
@@ -269,6 +274,7 @@ OnInt.time_integrate();
 OffInt = OffLine.copy();
 OffInt.time_integrate();
 
+# Calculate Aerosol Backscatter Coefficient
 aer_beta_dlb = lp.AerosolBackscatter(Molecular,CombHi,beta_mol_sonde)
 
 MolInt = Molecular.copy();
@@ -277,9 +283,8 @@ CombInt = CombHi.copy();
 CombInt.time_integrate();
 sonde_int = beta_mol_sonde.copy()
 sonde_int.time_integrate();
-#aer_beta_dlb_int = lp.Calc_AerosolBackscatter(MolInt,CombInt,Tsonde,Psonde)
 aer_beta_dlb_int = lp.AerosolBackscatter(MolInt,CombInt,sonde_int)
-lp.plotprofiles([aer_beta_dlb_int])
+lp.plotprofiles([aer_beta_dlb_int,sonde_int])
 
 
 if use_geo:
@@ -294,10 +299,7 @@ CombLP = CombHi.copy()
 CombLP.conv(4,2)
 aer_beta_LP = lp.AerosolBackscatter(MolLP,CombLP,beta_mol_sonde)
 
-# convert pressure from Pa to atm.
-pres.gain_scale(9.86923e-6)  
-pres.descript = 'Sonde Measured Pressure in atm'
-pres.profile_type = '$atm.$'
+
 
 
 #### Grab Sonde Data
@@ -327,9 +329,9 @@ Tsonde = temp.profile[isonde,:]
 
 #nWV = wv.WaterVapor_2D(OnLine,OffLine,lambda_on,lambda_off,pres,temp)
 nWV = wv.WaterVapor_Simple(OnLine,OffLine,Psonde,Tsonde)
-
 nWV.conv(0.3,2.0)
-#
+nWV.mask_range('<=',WV_Min_Alt)
+
 
 dnu = np.linspace(-7e9,7e9,400)
 inuL = np.argmin(np.abs(dnu))
