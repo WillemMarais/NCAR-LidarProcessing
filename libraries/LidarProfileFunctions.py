@@ -757,12 +757,46 @@ class LidarProfile():
                 self.shot_count = np.concatenate((self.shot_count,NewProfile.shot_count))
                 self.NumProfList = np.concatenate((self.NumProfList,NewProfile.NumProfList))
         else:
-            self.ProcessingStatus.extend(['Concatenate Time Data Skipped (Empty Profile Supplied)']) 
+            self.ProcessingStatus.extend(['Concatenate Time Data Skipped (Empty Profile Supplied) between %s and %s'%(self.label,NewProfile.label)]) 
         
-    def cat_range(self,NewProfile):
-        # concatenate the added profile to the top of this profile and store it
-        print ('cat_range() initiated for %s but no processing code has been written for this.' %self.label)
-        self.ProcessingStatus.extend(['Concatenate Range Data']) 
+    def cat_range(self,NewProfile,bottom=True):
+        
+        if all(NewProfile.time == self.time):
+            use_mask = False
+            if hasattr(self.profile,'mask'):
+                current_mask = self.profile.mask.copy()
+                use_mask = True
+            else:
+                current_mask = np.zeros(self.profile.shape)
+            if hasattr(NewProfile.profile,'mask'):
+                new_mask = NewProfile.profile.mask.copy()
+                use_mask = True
+            else:
+                new_mask = np.zeros(NewProfile.profile.shape)
+            
+            if bottom:
+                self.range_array = np.concatenate((NewProfile.range_array,self.range_array))
+                self.profile = np.hstack((NewProfile.profile,self.profile))
+                self.profile_variance = np.hstack((NewProfile.profile_variance,self.profile_variance))
+                if use_mask:
+                    set_mask = np.hstack((new_mask,current_mask))
+                    self.profile.mask = set_mask
+#                    self.profile = np.ma.array(self.profile,mask=set_mask)
+#                    self.profile = np.ma.array(self.profile_variance,mask=set_mask)
+                self.ProcessingStatus.extend(['Concatenate Range Data to bottom'])
+            else:
+                self.range_array = np.concatenate((self.range_array,NewProfile.range_array))
+                self.profile = np.hstack((self.profile,NewProfile.profile))
+                self.profile_variance = np.hstack((self.profile_variance,NewProfile.profile_variance))
+#                if use_mask:
+#                    set_mask = np.hstack((current_mask,new_mask))
+#                    self.profile = np.ma.array(self.profile,mask=set_mask)
+#                    self.profile = np.ma.array(self.profile_variance,mask=set_mask)
+                self.ProcessingStatus.extend(['Concatenate Range Data to top'])
+                
+        else:
+            print('Warning: Concatenate Range Data Skipped (time axes did not match)')
+            self.ProcessingStatus.extend(['Concatenate Range Data Skipped (time axes did not match) between %s and %s'%(self.label,NewProfile.label)])
         
     def cat_ProcessingStatus(self,ProcessingUpdate):
         self.ProcessingStatus.extend([ProcessingUpdate]) 

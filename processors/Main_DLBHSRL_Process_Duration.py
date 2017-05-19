@@ -27,7 +27,7 @@ USER INPUTS
 cal_path = '/h/eol/mhayman/PythonScripts/NCAR-LidarProcessing/calibrations/'
 cal_file = cal_path+'dlb_calvals_msu.json'
 
-Years,Months,Days,Hours = lp.generate_WVDIAL_day_list(2017,5,17,startHr=20,duration=4)
+Years,Months,Days,Hours = lp.generate_WVDIAL_day_list(2016,12,24,startHr=0,duration=24)
 
 plotAsDays = False
 getMLE_extinction = False
@@ -48,8 +48,8 @@ KlettAlt = 14e3  # altitude where Klett inversion starts
 tres = 1*60.0  # time resolution in seconds (2 sec typical base)
 zres = 75  # range resolution in m (37.5 m typical base)
 
-use_diff_geo = False   # no diff geo correction after April ???
-use_geo = True
+use_diff_geo = True   # no diff geo correction after April ???
+use_geo = False
 
 use_mask = False
 SNRmask = 0.0  #SNR level used to decide what data points we keep in the final data product
@@ -128,7 +128,8 @@ if save_as_nc or save_figs:
     ncfilename = save_data_path+ncfilename0
     figfilename = save_fig_path + ncfilename0[:-3] + nctag
 
-[Molecular,CombHi],lambda_hsrl,HourLim = wv.Load_DLB_Data(basepath,FieldLabel,[MolFileBase,CombFileBase],MasterTime,Years,Months,Days,Hours,MCSbins,lidar='DLB-HSRL',dt=dt,Roffset=Roffset,BinWidth=BinWidth)
+[Molecular,CombHi],[lambda_hsrl,surf_temp,surf_pres,surf_humid],HourLim = \
+     wv.Load_DLB_Data(basepath,FieldLabel,[MolFileBase,CombFileBase],MasterTime,Years,Months,Days,Hours,MCSbins,lidar='DLB-HSRL',dt=dt,Roffset=Roffset,BinWidth=BinWidth)
 
 Molecular.slice_time(HourLim*3600)
 MolRaw = Molecular.copy()

@@ -32,7 +32,7 @@ USER INPUTS
 cal_path = '/h/eol/mhayman/PythonScripts/NCAR-LidarProcessing/calibrations/'
 cal_file = cal_path+'dlb_calvals_msu.json'
 
-Years,Months,Days,Hours = lp.generate_WVDIAL_day_list(2017,5,12,startHr=0,duration=24)
+Years,Months,Days,Hours = lp.generate_WVDIAL_day_list(2017,5,19,startHr=0,duration=24)
 
 
 plotAsDays = False
@@ -146,8 +146,21 @@ MasterTimeHSRL = np.arange(Hours[0,0]*3600,Days.size*24*3600-(24-Hours[-1,-1])*3
 MasterTimeWV = np.arange(Hours[0,0]*3600,Days.size*24*3600-(24-Hours[-1,-1])*3600,tres_wv)
 
 
-[Molecular,CombHi],lambda_hsrl,HourLim = wv.Load_DLB_Data(basepath,FieldLabel_HSRL,[MolFileBase,CombFileBase],MasterTimeHSRL,Years,Months,Days,Hours,MCSbins,lidar='DLB-HSRL',dt=dt,Roffset=Roffset,BinWidth=BinWidth)
-[OnLine,OffLine],[lambda_on,lambda_off],HourLim = wv.Load_DLB_Data(basepath,FieldLabel_WV,[ON_FileBase,OFF_FileBase],MasterTimeWV,Years,Months,Days,Hours,MCSbins,lidar='WV-DIAL',dt=dt,Roffset=Roffset,BinWidth=BinWidth)
+[Molecular,CombHi],[lambda_hsrl,[surf_temp],[surf_pres],[surf_humid]],HourLim = wv.Load_DLB_Data(basepath,FieldLabel_HSRL,[MolFileBase,CombFileBase],MasterTimeHSRL,Years,Months,Days,Hours,MCSbins,lidar='DLB-HSRL',dt=dt,Roffset=Roffset,BinWidth=BinWidth)
+[OnLine,OffLine],[[lambda_on,lambda_off],[surf_temp],[surf_pres],[surf_humid]],HourLim = wv.Load_DLB_Data(basepath,FieldLabel_WV,[ON_FileBase,OFF_FileBase],MasterTimeWV,Years,Months,Days,Hours,MCSbins,lidar='WV-DIAL',dt=dt,Roffset=Roffset,BinWidth=BinWidth)
+
+# create a humidity "lidar profile" to add to the derived water vapor before plotting
+# an extra set of masked range bins is used to create range separation from the 
+# lidar profile starting at ~ 350 m
+surf_humid = np.hstack((surf_humid[:,np.newaxis],np.zeros(surf_humid[:,np.newaxis].shape)))
+surf_humid_mask = np.zeros(surf_humid.shape)
+surf_humid_mask[:,1] = True
+surf_humid = np.ma.array(surf_humid,mask=surf_humid_mask)
+SurfaceHumid = lp.LidarProfile(surf_humid,OffLine.time, \
+    label='Absolute Humidity',descript = 'Absolute Humidity from Surface Station', \
+    bin0=0,lidar='Surface Station',binwidth=2*100/lp.c, \
+    StartDate=ProcStart)
+SurfaceHumid.profile_type = '$g/m^{3}$'
 
 #lp.pcolor_profiles([OnLine,OffLine],climits=[[-8.0,-4.0],[-8.0,-4.0]],scale=['log','log'],plotAsDays=plotAsDays) 
 #lp.plotprofiles([OnLine,OffLine])
@@ -332,57 +345,59 @@ nWV = wv.WaterVapor_Simple(OnLine,OffLine,Psonde,Tsonde)
 nWV.conv(0.3,2.0)
 nWV.mask_range('<=',WV_Min_Alt)
 
-
-dnu = np.linspace(-7e9,7e9,400)
-inuL = np.argmin(np.abs(dnu))
-MolSpec = lp.RB_Spectrum(Tsonde,Psonde,OffLine.wavelength,nu=dnu)
-nuOff = lp.c/OffLine.wavelength
-nuOn = lp.c/OnLine.wavelength
+nWV.cat_range(SurfaceHumid)
 
 
-
-Filter = FO.FP_Etalon(1.0932e9,43.5e9,nuOff,efficiency=0.95,InWavelength=False)
-Toffline = Filter.spectrum(dnu+nuOff,InWavelength=False,aoi=0.0,transmit=True)
-Tonline = Filter.spectrum(dnu+nuOn,InWavelength=False,aoi=0.0,transmit=True)
-
-Toffline2 = Filter.spectrum(lp.c/lambda_on,InWavelength=False,aoi=0.0,transmit=True)
-Tonline2 = Filter.spectrum(lp.c/lambda_off,InWavelength=False,aoi=0.0,transmit=True)
-
-plt.figure(); 
-plt.plot(dnu+nuOn,Tonline); 
-plt.plot(dnu+nuOff,Toffline);
-plt.plot(lp.c/lambda_on,Tonline2,'bx',label='Online'); 
-plt.plot(lp.c/lambda_off,Toffline2,'gx',label='Offline');
-
-#plt.plot(dnu[inuL]+nuOn,Tonline[inuL],'bx',label='Online')
-#plt.plot(dnu[inuL]+nuOff,Toffline[inuL],'gx',label='Offline')
-plt.grid(b=True)
-plt.xlabel('Frequency [Hz]')
-plt.ylabel('Transmission')
-
-nuWV = np.linspace(lp.c/828.5e-9,lp.c/828e-9,500)
-sigWV = lp.WV_ExtinctionFromHITRAN(nuWV,Tsonde,Psonde) #,nuLim=np.array([lp.c/835e-9,lp.c/825e-9]))  
-ind_on = np.argmin(np.abs(lp.c/OnLine.wavelength-nuWV))
-ind_off = np.argmin(np.abs(lp.c/OffLine.wavelength-nuWV))
-
-sigOn = sigWV[:,ind_on]
-sigOff = sigWV[:,ind_off]
-
-sigF = scipy.interpolate.interp1d(nuWV,sigWV)
-sigWVOn = sigF(dnu+nuOn).T
-sigWVOff = sigF(dnu+nuOff).T
-
-#sigWVOn = lp.WV_ExtinctionFromHITRAN(nuOn+dnu,Tsonde,Psonde) 
-#sigWVOff = lp.WV_ExtinctionFromHITRAN(nuOff+dnu,Tsonde,Psonde)
-
-sigOn = sigWVOn[inuL,:]
-sigOff = sigWVOff[inuL,:]
-
-
-
-range_diff = OnLine.range_array[1:]-OnLine.mean_dR/2.0
-dsig = np.interp(range_diff,OnLine.range_array,sigOn-sigOff)
-nWVp = -1.0/(2*(dsig)[np.newaxis,:])*np.diff(np.log(OnLine.profile/OffLine.profile),axis=1)/OnLine.mean_dR
+#dnu = np.linspace(-7e9,7e9,400)
+#inuL = np.argmin(np.abs(dnu))
+#MolSpec = lp.RB_Spectrum(Tsonde,Psonde,OffLine.wavelength,nu=dnu)
+#nuOff = lp.c/OffLine.wavelength
+#nuOn = lp.c/OnLine.wavelength
+#
+#
+#
+#Filter = FO.FP_Etalon(1.0932e9,43.5e9,nuOff,efficiency=0.95,InWavelength=False)
+#Toffline = Filter.spectrum(dnu+nuOff,InWavelength=False,aoi=0.0,transmit=True)
+#Tonline = Filter.spectrum(dnu+nuOn,InWavelength=False,aoi=0.0,transmit=True)
+#
+#Toffline2 = Filter.spectrum(lp.c/lambda_on,InWavelength=False,aoi=0.0,transmit=True)
+#Tonline2 = Filter.spectrum(lp.c/lambda_off,InWavelength=False,aoi=0.0,transmit=True)
+#
+#plt.figure(); 
+#plt.plot(dnu+nuOn,Tonline); 
+#plt.plot(dnu+nuOff,Toffline);
+#plt.plot(lp.c/lambda_on,Tonline2,'bx',label='Online'); 
+#plt.plot(lp.c/lambda_off,Toffline2,'gx',label='Offline');
+#
+##plt.plot(dnu[inuL]+nuOn,Tonline[inuL],'bx',label='Online')
+##plt.plot(dnu[inuL]+nuOff,Toffline[inuL],'gx',label='Offline')
+#plt.grid(b=True)
+#plt.xlabel('Frequency [Hz]')
+#plt.ylabel('Transmission')
+#
+#nuWV = np.linspace(lp.c/828.5e-9,lp.c/828e-9,500)
+#sigWV = lp.WV_ExtinctionFromHITRAN(nuWV,Tsonde,Psonde) #,nuLim=np.array([lp.c/835e-9,lp.c/825e-9]))  
+#ind_on = np.argmin(np.abs(lp.c/OnLine.wavelength-nuWV))
+#ind_off = np.argmin(np.abs(lp.c/OffLine.wavelength-nuWV))
+#
+#sigOn = sigWV[:,ind_on]
+#sigOff = sigWV[:,ind_off]
+#
+#sigF = scipy.interpolate.interp1d(nuWV,sigWV)
+#sigWVOn = sigF(dnu+nuOn).T
+#sigWVOff = sigF(dnu+nuOff).T
+#
+##sigWVOn = lp.WV_ExtinctionFromHITRAN(nuOn+dnu,Tsonde,Psonde) 
+##sigWVOff = lp.WV_ExtinctionFromHITRAN(nuOff+dnu,Tsonde,Psonde)
+#
+#sigOn = sigWVOn[inuL,:]
+#sigOff = sigWVOff[inuL,:]
+#
+#
+#
+#range_diff = OnLine.range_array[1:]-OnLine.mean_dR/2.0
+#dsig = np.interp(range_diff,OnLine.range_array,sigOn-sigOff)
+#nWVp = -1.0/(2*(dsig)[np.newaxis,:])*np.diff(np.log(OnLine.profile/OffLine.profile),axis=1)/OnLine.mean_dR
 #
 ###nWV = lp.LidarProfile(nWVp,OnLine.time,label='Water Vapor Number Density',descript = 'Water Vapor Number Density',bin0=-Roffset/dR,lidar='WV-DIAL',binwidth=BinWidth,StartDate=ProcStart)
 ##nWV = OnLine.copy()
@@ -427,23 +442,23 @@ if plotAsDays:
 else:
     time_scale = 3600.0
 
-plt.figure(figsize=(15,5)); 
-plt.pcolor(OnLine.time/3600,OnLine.range_array*1e-3, np.log10(1e9*OnLine.profile.T/OnLine.binwidth_ns/(dt*7e3)));
-plt.colorbar()
-plt.clim([3,8])
-plt.title('Online ' + OnLine.lidar + ' Count Rate [Hz]')
-plt.ylabel('Altitude [km]')
-plt.xlabel('Time [UTC]')
-plt.xlim(HourLim)
-
-plt.figure(figsize=(15,5)); 
-plt.pcolor(OffLine.time/3600,OffLine.range_array*1e-3, np.log10(1e9*OffLine.profile.T/OffLine.binwidth_ns/(dt*7e3)));
-plt.colorbar()
-plt.clim([3,8])
-plt.title('Offline '+ OffLine.lidar + ' Count Rate [Hz]')
-plt.ylabel('Altitude [km]')
-plt.xlabel('Time [UTC]')
-plt.xlim(HourLim)
+#plt.figure(figsize=(15,5)); 
+#plt.pcolor(OnLine.time/3600,OnLine.range_array*1e-3, np.log10(1e9*OnLine.profile.T/OnLine.binwidth_ns/(dt*7e3)));
+#plt.colorbar()
+#plt.clim([3,8])
+#plt.title('Online ' + OnLine.lidar + ' Count Rate [Hz]')
+#plt.ylabel('Altitude [km]')
+#plt.xlabel('Time [UTC]')
+#plt.xlim(HourLim)
+#
+#plt.figure(figsize=(15,5)); 
+#plt.pcolor(OffLine.time/3600,OffLine.range_array*1e-3, np.log10(1e9*OffLine.profile.T/OffLine.binwidth_ns/(dt*7e3)));
+#plt.colorbar()
+#plt.clim([3,8])
+#plt.title('Offline '+ OffLine.lidar + ' Count Rate [Hz]')
+#plt.ylabel('Altitude [km]')
+#plt.xlabel('Time [UTC]')
+#plt.xlim(HourLim)
 
 lp.pcolor_profiles([nWV,aer_beta_dlb],climits=[[0,12],[-8.0,-4.0]],scale=['linear','log'],plotAsDays=plotAsDays)  # 
 if save_figs:

@@ -258,7 +258,9 @@ def Load_DLB_Data(basepath,FieldLabel,FileBase,MasterTime,Years,Months,Days,Hour
         labels used for the profiles.
         Defaults to 'WV-DIAL'.  Also accepts
         'DLB-HSRL'
-    returns list of lidar profiles requested and list of corresponding wavelength data and the Limits in Hours
+    returns list of lidar profiles requested and 
+        list of corresponding wavelength and surface station data and 
+        the time limits in Hours
         
     
     FieldLabel_WV = 'FF'
@@ -268,6 +270,12 @@ def Load_DLB_Data(basepath,FieldLabel,FileBase,MasterTime,Years,Months,Days,Hour
     FieldLabel_HSRL = 'NF'
     MolFileBase = 'Online_Raw_Data.dat'
     CombFileBase = 'Offline_Raw_Data.dat'
+    
+    example function call:
+    [OnLine,OffLine],[[lambda_on,lambda_off],[surf_temp],[surf_pres],[surf_humid]],HourLim = \
+        wv.Load_DLB_Data(basepath,FieldLabel_WV,[ON_FileBase,OFF_FileBase], \
+        MasterTimeWV,Years,Months,Days,Hours,MCSbins,lidar='WV-DIAL',dt=dt, \
+        Roffset=Roffset,BinWidth=BinWidth)
 
     """    
     
@@ -361,36 +369,14 @@ def Load_DLB_Data(basepath,FieldLabel,FileBase,MasterTime,Years,Months,Days,Hour
                     itimeBad = np.nonzero(np.diff(timeData[ifb])<0)[0]        
                     if itimeBad.size > 0:
                         timeData[ifb][itimeBad+1] = timeData[ifb][itimeBad]+dt
-                #hi_data,hi_vars = lp.read_WVDIAL_binary(loadfile_comb,MCSbins)
-                       
-                
-#                timeDataM =3600*24*(np.remainder(mol_vars[0,:],1)+deltat_0)
-#                timeDataT =3600*24*(np.remainder(hi_vars[0,:],1)+deltat_0)
-#                
-#                shots_m = np.ones(np.shape(timeDataM))*np.mean(mol_vars[6,:])
-#                shots_t = np.ones(np.shape(timeDataT))*np.mean(mol_vars[6,:])
-#                
-#                wavelen_on0 = on_vars[1,:]*1e-9      
-#                wavelen_off0 = off_vars[1,:]*1e-9 
-#                
-#                itimeBad = np.nonzero(np.diff(timeDataM)<0)[0]        
-#                if itimeBad.size > 0:
-#                    timeDataM[itimeBad+1] = timeDataM[itimeBad]+dt
-#                    
-#                itimeBad = np.nonzero(np.diff(timeDataT)<0)[0]        
-#                if itimeBad.size > 0:
-#                    timeDataT[itimeBad+1] = timeDataT[itimeBad]+dt
-#                
-#        #        print timeDataM.size
-#        #        print timeDataT.size        
-#                
+
 #                # load profile data
                 if firstFile:
-        #            timeMaster = np.arange(np.floor(np.min((timeDataM[0],timeDataT[0]))),np.floor(np.min((timeDataM[0],timeDataT[0]))),tres)
                     profiles = []
                     prof_rem = []
                     wavelen = []
                     t_wavelen = []
+                    h_vars = []
                     for ifb in range(len(FileBase)):
                         ptemp = lp.LidarProfile(prf_data[ifb].T,timeData[ifb],label=label[ifb],descript = descript[ifb],bin0=-Roffset/dR,lidar=lidar,shot_count=shots[ifb],binwidth=BinWidth,StartDate=ProcStart)
                         prem = ptemp.time_resample(tedges=MasterTime,update=True,remainder=True)
@@ -399,52 +385,37 @@ def Load_DLB_Data(basepath,FieldLabel,FileBase,MasterTime,Years,Months,Days,Hour
                         
                         wavelen.extend([wavelen0[ifb]])
                         t_wavelen.extend([timeData[ifb]])
-                    
-                    
-                    
-#                    Molecular = lp.LidarProfile(mol_data.T,timeDataM,label='Molecular Backscatter Channel',descript = 'Unpolarization\nMolecular Backscatter Returns',bin0=-Roffset/dR,lidar='DLB-HSRL',shot_count=shots_m,binwidth=BinWidth,StartDate=ProcStart)
-#    #                RemMol = Molecular.time_resample(delta_t=tres,t0=HourLim[0]*3600,update=True,remainder=True)
-#                    RemMol = Molecular.time_resample(tedges=MasterTime,update=True,remainder=True)
-#                    
-#                    CombHi = lp.LidarProfile(hi_data.T,timeDataT,label='Total Backscatter Channel',descript = 'Unpolarization\nHigh Gain\nCombined Aerosol and Molecular Returns',bin0=-Roffset/dR,lidar='DLB-HSRL',shot_count=shots_t,binwidth=BinWidth,StartDate=ProcStart)
-#    #                RemCom = CombHi.time_resample(delta_t=tres,t0=HourLim[0]*3600,update=True,remainder=True)
-#                    RemCom = CombHi.time_resample(tedges=MasterTime,update=True,remainder=True)
+                        h_vars.extend([prf_vars[ifb]])
                             
                     firstFile = False
                     
                     
                     
                 else:
-    #                timeMaster = np.arange(Molecular.time[0]+tres,np.floor(np.min((timeDataM[0],timeDataT[0]))),tres)
                     for ifb in range(len(FileBase)):
                         if np.size(prof_rem[ifb].time) > 0:
                             ptemp = lp.LidarProfile(prf_data[ifb].T,timeData[ifb],label=label[ifb],descript = descript[ifb],bin0=-Roffset/dR,lidar=lidar,shot_count=shots[ifb],binwidth=BinWidth,StartDate=ProcStart)
                             ptemp.cat_time(prof_rem[ifb])
-            #                mol_data = np.hstack((RemMol.profile.T,mol_data))
-            #                MolTmp = lp.LidarProfile(mol_data.T,dt*np.arange(mol_data.shape[1])+RemMol.time[-1]+Molecular.mean_dt,label='Molecular Backscatter Channel',descript = 'Unpolarization\nMolecular Backscatter Returns',bin0=0,lidar='DLB-HSRL')
-        #                    RemMol = MolTmp.time_resample(delta_t=tres,t0=(Molecular.time[-1]+tres),update=True,remainder=True)
+
                             prem = ptemp.time_resample(tedges=MasterTime,update=True,remainder=True)
                             profiles[ifb].cat_time(ptemp,front=False)
                             prof_rem[ifb] = prem.copy()
                             
-#                            ComTmp = lp.LidarProfile(hi_data.T,timeDataT,label='Total Backscatter Channel',descript = 'Unpolarization\nHigh Gain\nCombined Aerosol and Molecular Returns',bin0=0,lidar='DLB-HSRL',shot_count=shots_t,binwidth=BinWidth,StartDate=ProcStart)
-#                            ComTmp.cat_time(RemCom)
-#            #                hi_data = np.hstack((RemCom.profile.T,hi_data))
-#            #                ComTmp = lp.LidarProfile(hi_data.T,dt*np.arange(hi_data.shape[1])+RemCom.time[-1]+CombHi.mean_dt,label='Total Backscatter Channel',descript = 'Unpolarization\nHigh Gain\nCombined Aerosol and Molecular Returns',bin0=0,lidar='DLB-HSRL')
-#        #                    RemCom = ComTmp.time_resample(delta_t=tres,t0=(CombHi.time[-1]+tres),update=True,remainder=True)
-#                            RemCom = ComTmp.time_resample(tedges=MasterTime,update=True,remainder=True)
-#                            CombHi.cat_time(ComTmp,front=False)
+
                         else:
                             ptemp = lp.LidarProfile(prf_data[ifb].T,timeData[ifb],label=label[ifb],descript = descript[ifb],bin0=-Roffset/dR,lidar=lidar,shot_count=shots[ifb],binwidth=BinWidth,StartDate=ProcStart)
-            #                MolTmp = lp.LidarProfile(mol_data.T,dt*np.arange(mol_data.shape[1])+Molecular.time[-1]+Molecular.mean_dt,label='Molecular Backscatter Channel',descript = 'Unpolarization\nMolecular Backscatter Returns',bin0=0,lidar='DLB-HSRL')
-        #                    RemMol = MolTmp.time_resample(delta_t=tres,t0=(Molecular.time[-1]+tres),update=True,remainder=True)
+
                             prem = ptemp.time_resample(tedges=MasterTime,update=True,remainder=True)
                             profiles[ifb].cat_time(ptemp,front=False)
                             prof_rem[ifb] = prem.copy()
-#                    for ifb in range(len(FileBase)):
+
                         wavelen[ifb] = np.concatenate((wavelen[ifb],wavelen0[ifb]))
                         t_wavelen[ifb] = np.concatenate((t_wavelen[ifb],timeData[ifb]))
+                        h_vars[ifb] = np.concatenate((h_vars[ifb],prf_vars[ifb]),axis=1)
     lambda_lidar = []
+    surf_temp = []
+    surf_pres = []
+    surf_humid = []
     for ifb in range(len(FileBase)):               
         dt_WL = np.mean(np.diff(t_wavelen[ifb]))  # determine convolution kernel size
         conv_kern = np.ones(np.ceil(profiles[0].mean_dt/dt_WL))  # build convolution kernel
@@ -453,7 +424,21 @@ def Load_DLB_Data(basepath,FieldLabel,FileBase,MasterTime,Years,Months,Days,Hour
         t_filt = np.convolve(conv_kern,t_wavelen[ifb],'valid')
         lambda_lidar.extend([1e-9*np.interp(profiles[0].time,t_filt,wavelen_filt)])
         profiles[ifb].wavelength = 1e-9*np.median(np.round(lambda_lidar[ifb]*1e9,decimals=6))  # set profile wavelength based on the median value
+        
+        # get temperature, pressure and humidity        
+        if 'Offline' in FileBase[ifb]:
+             # % relative humidity is stored at index 6.
+             # convert it to absolute humidity in g/m^3
+             abs_humid = 6.112*np.exp(17.67*h_vars[ifb][4,:]/(h_vars[ifb][4,:]+243.5))*h_vars[ifb][6,:]*2.1674/(273.15+h_vars[ifb][4,:])
+             humid_filt = np.convolve(conv_kern,abs_humid,'valid')    
+             surf_humid.extend([np.interp(profiles[0].time,t_filt,humid_filt)])
+             
+             pres_filt = np.convolve(conv_kern,h_vars[ifb][5,:]/1013.25,'valid')    # convert to atm
+             surf_pres.extend([np.interp(profiles[0].time,t_filt,pres_filt)])
+             
+             temp_filt = np.convolve(conv_kern,h_vars[ifb][4,:]+273.15,'valid')     # convert to K
+             surf_temp.extend([np.interp(profiles[0].time,t_filt,temp_filt)])
     
     HourLim = np.array([Hours[0,0],Hours[1,-1]+deltat_0*24])
     
-    return profiles,lambda_lidar,HourLim
+    return profiles,[lambda_lidar,surf_temp,surf_pres,surf_humid],HourLim
