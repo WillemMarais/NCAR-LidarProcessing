@@ -25,14 +25,16 @@
 		{"date": "21-Dec-2016, 0:0","value": 0.32149280575539574, "diff_geo": "none", "change type": "abrupt", "notes": ""},
 		{"date": "21-Dec-2016, 18:30","value": 1.2821, "diff_geo": "none", "change type": "abrupt", "notes": ""},
 		{"date": "14-Apr-2017, 0:0","value": 1.33, "diff_geo": "none", "change type": "abrupt", "notes": ""},
-		{"date": "5-May-2017, 0:0","value": 3.17, "diff_geo": "none", "change type": "abrupt", "notes": ""}
+		{"date": "5-May-2017, 0:0","value": 3.17, "diff_geo": "none", "change type": "abrupt", "notes": ""},
+		{"date": "24-May-2017, 0:0","value": 3.287, "diff_geo": "none", "change type": "gradual", "notes": ""}
 	],
 
 	"Geo File Record": [
 		{"date": "20-Jan-2017, 0:0","value": 0.0, "filename": "geo_DLB_20170120_0.npz", "change type": "gradual", "notes": ""},
 		{"date": "13-Apr-2017, 0:0","value": 0.0, "filename": "geo_DLB_20170413.npz", "change type": "abrupt", "notes": ""},
 		{"date": "18-Apr-2017, 0:0","value": 0.0, "filename": "geo_DLB_20170418.npz", "change type": "gradual", "notes": ""},
-		{"date": "5-May-2017, 0:0","value": 0.0, "filename": "geo_DLB_20170512.npz", "change type": "abrupt", "notes": ""}
+		{"date": "5-May-2017, 0:0","value": 0.0, "filename": "geo_DLB_20170512.npz", "change type": "abrupt", "notes": ""},
+		{"date": "24-May-2017, 0:0","value": 0.0, "filename": "geo_DLB_20170524.npz", "change type": "gradual", "notes": "Uses outdated sonde data"}
 	],
 
 	"Data Time Resolution": [
@@ -47,7 +49,8 @@
 		{"date": "21-Dec-2016, 0:0", "value": "Switched to 70/30 beam splitter"},
 		{"date": "20-Jan-2017, 0:0", "value": "Begin including uncertainty in geo calibrations"},
 		{"date": "8-Apr-2017, 0:0", "value": "Date Approximate.  Changed MCS to have 37.5 m resolution"},
-		{"date": "5-May-2017, 0:0","value": "Integrated WV-DIAL with DLB-HSRL"}
+		{"date": "5-May-2017, 0:0","value": "Integrated WV-DIAL with DLB-HSRL"},
+		{"date": "24-May-2017, 22:00","value": "Double Etalon inserted in DLB-HSRL channel"}
 	]
 
 }
