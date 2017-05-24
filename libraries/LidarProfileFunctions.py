@@ -535,6 +535,19 @@ class LidarProfile():
                     self.cat_ProcessingStatus('Range Resample to dR = %.1f m'%(self.mean_dR))
                 else:
                     return profNew  # needs to be updated to return a LidarProfile type
+    def mask(self,new_mask):
+        """
+        adds new_mask to the current lidar profile mask
+        """
+        
+        if new_mask.shape == self.profile.shape:
+            if hasattr(self.profile,'mask'):
+                new_mask = np.logical_or(new_mask,self.profile.mask)
+                self.profile.mask = new_mask
+            else:
+                self.profile = np.ma.array(self.profile,mask=new_mask)
+        else:
+            print("Warning: mask applied to %s does not have the same dimensions as the profile"%self.label)
             
     def mask_range(self,type_str,limits):
         range_mask_defined = False
@@ -895,7 +908,7 @@ class LidarProfile():
         """
         Calculate and return the SNR of the profile
         """
-        return self.profile/np.sqrt(self.profile_variance)
+        return np.abs(self.profile)/np.sqrt(self.profile_variance)
     
     def p_thin(self,n=2):
         """
@@ -1832,14 +1845,14 @@ def Poisson_Thin(y,n=2):
         copylist.extend([copy])
     return copylist
 
-def RB_Spectrum(T,P,lam,nu=np.array([])):
+def RB_Spectrum(T,P,lam,nu=np.array([]),norm=True):
     """
     RB_Spectrum(T,P,lam,nu=np.array([]))
     Obtain the Rayleigh-Brillouin Spectrum of Earth atmosphere
     T - Temperature in K.  Accepts an array
     P - Pressure in Atm.  Accepts an array with size equal to size of T
     lam - wavelength in m
-    nu - frequency basis.  If not supplied uses native frequency from the PCA
+    nu - differential frequency basis.  If not supplied uses native frequency from the PCA
         analysis.
     
     
@@ -1867,12 +1880,15 @@ def RB_Spectrum(T,P,lam,nu=np.array([])):
    
         for ai in range(T.size):
             SpcaI[:,ai] = np.interp(xR[:,ai],x.flatten(),Spca[:,ai],left=0,right=0)
-            
+            if norm:
+                SpcaI[:,ai] = SpcaI[:,ai]/np.sum(SpcaI[:,ai])
         return SpcaI
 #        S1 = interp1(xR,Spca(:,1),xR(:,1));
         
     else:
         # if nu is not provided, return the spectra and the native x axis
+        if norm:
+            SpcaI = SpcaI/np.sum(SpcaI,axis=0)[np.newaxis,:]
         return Spca,x
 
 def Get_RB_PCA(M,Mavg,y):
