@@ -79,6 +79,87 @@ def WaterVapor_Simple(OnLine,OffLine,Psonde,Tsonde):
     nWV.profile_type = '$m^{-3}$'
     nWV.range_array = range_diff
     nWV.profile_variance = (0.5/(dsig)/OnLine.mean_dR)**2*( \
+        OnLine.profile_variance[:,1:]/OnLine.profile[:,1:]**2 + \
+        OnLine.profile_variance[:,:-1]/OnLine.profile[:,:-1]**2 + \
+        OffLine.profile_variance[:,1:]/OffLine.profile[:,1:]**2 + \
+        OffLine.profile_variance[:,:-1]/OffLine.profile[:,:-1]**2)
+    
+    # convert to g/m^3
+    nWV.gain_scale(lp.mH2O/lp.N_A)  
+    nWV.profile_type = '$g/m^{3}$'
+    nWV.label = 'Absolute Humidity'
+    nWV.descript = 'Absolute Humidity'
+    
+#    nWV.conv(2.0,3.0)  # low pass filter if desired
+    return nWV
+    
+def WaterVapor_Simple_RD_Test(OnLine,OffLine,Psonde,Tsonde,BSR):
+    """
+    Performs a simple compuation of the water vapor profile using
+    a single radiosonde and assumes the wavelength is constant over the
+    profile.
+    
+    WaterVapor_Simple(OnLine,OffLine,Psonde,Tsonde)
+    OnLine - the online lidar profile
+    OffLine - the offline lidar profile
+    
+    Psonde - pressure in (in atm) obtained from a sonde or model
+            altitude profile is matched to the lidar profiles
+    Tsonde - temperature (in K) obtainted from a sonde or model
+            altitude profile is matched to the lidar profiles
+    
+    returns
+    nWV - a lidar profile containing the directly computed water vapor in g/m^3
+    
+    """
+    
+    # compute frequencies from wavelength terms
+    dnu = np.linspace(-70e9,70e9,4000)  # array of spectrum relative to transmitted frequency
+    inuL = np.argmin(np.abs(dnu))  # index to the laser frequency in the spectrum
+    nuOff = lp.c/OffLine.wavelength  # Offline laser frequency
+    nuOn = lp.c/OnLine.wavelength   # Online laser frequency
+
+    dBSR = np.diff(BSR,axis=1)/OffLine.mean_dR  # Calculate backscatter ratio derivative
+    BSR_interp = 0.5*(BSR[:,:-1]+BSR[:,1:])  # differential range interpolated BSR
+    
+    WVcorr = dBSR/BSR_interp  # correction term for wv extinction
+    
+#    Filter = FO.FP_Etalon(1.0932e9,43.5e9,nuOff,efficiency=0.95,InWavelength=False)
+#    Toffline = Filter.spectrum(dnu+nuOff,InWavelength=False,aoi=0.0,transmit=True)
+#    Tonline = Filter.spectrum(dnu+nuOn,InWavelength=False,aoi=0.0,transmit=True)
+    
+    nuWV = np.linspace(lp.c/828.5e-9,lp.c/828e-9,500)   # set region in hitran profile to use
+    # sigWV is a 2D array with laser frequency on the 0 axis and range on the 1 axis. 
+    sigWV = lp.WV_ExtinctionFromHITRAN(nuWV,Tsonde,Psonde,freqnorm=True) #,nuLim=np.array([lp.c/835e-9,lp.c/825e-9]))    # get the WV spectrum from hitran data
+    
+    sigF = sp.interpolate.interp1d(nuWV,sigWV)  # set up frequency interpolation for the two DIAL wavelengths
+    sigWVOn = sigF(dnu+nuOn).T  # get the absorption spectrum around the online wavelength
+    sigWVOff = sigF(dnu+nuOff).T  # get the absorption spectrum around the offline wavelength
+    
+    #sigWVOn = lp.WV_ExtinctionFromHITRAN(nuOn+dnu,Tsonde,Psonde) 
+    #sigWVOff = lp.WV_ExtinctionFromHITRAN(nuOff+dnu,Tsonde,Psonde)
+    
+    sigOn = sigWVOn[inuL,:]
+    sigOff = sigWVOff[inuL,:]
+
+    
+#    sigWV = lp.WV_ExtinctionFromHITRAN(np.array([nuOn,nuOff]),Tsonde,Psonde,nuLim=np.array([lp.c/835e-9,lp.c/825e-9])) 
+#    sigOn = sigWV[:,0]
+#    sigOff = sigWV[:,1]
+    
+    
+    
+    range_diff = OnLine.range_array[1:]-OnLine.mean_dR/2.0  # range grid for diffentiated signals
+    dsig = np.interp(range_diff,OnLine.range_array,sigOn-sigOff)  # interpolate difference in absorption to range_diff grid points
+    
+    # create the water vapor profile
+    nWV = OnLine.copy()
+    nWV.profile = -1.0/(2*(dsig)[np.newaxis,:])*(np.diff(np.log(OnLine.profile/OffLine.profile),axis=1)/OnLine.mean_dR+WVcorr)
+    nWV.label = 'Water Vapor Number Density'
+    nWV.descript = 'Water Vapor Number Density'
+    nWV.profile_type = '$m^{-3}$'
+    nWV.range_array = range_diff
+    nWV.profile_variance = (0.5/(dsig)/OnLine.mean_dR)**2*( \
         OnLine.profile_variance[:,1:]/OnLine.profile[:,1:] - \
         OnLine.profile_variance[:,:-1]/OnLine.profile[:,:-1] - \
         OffLine.profile_variance[:,1:]/OffLine.profile[:,1:] + \
@@ -87,6 +168,8 @@ def WaterVapor_Simple(OnLine,OffLine,Psonde,Tsonde):
     # convert to g/m^3
     nWV.gain_scale(lp.mH2O/lp.N_A)  
     nWV.profile_type = '$g/m^{3}$'
+    nWV.label = 'Absolute Humidity'
+    nWV.descript = 'Absolute Humidity'
     
 #    nWV.conv(2.0,3.0)  # low pass filter if desired
     return nWV
