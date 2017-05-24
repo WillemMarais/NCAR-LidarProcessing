@@ -29,10 +29,8 @@ import json
 USER INPUTS
 """
 
-cal_path = '/h/eol/mhayman/PythonScripts/NCAR-LidarProcessing/calibrations/'
-cal_file = cal_path+'dlb_calvals_msu.json'
 
-Years,Months,Days,Hours = lp.generate_WVDIAL_day_list(2017,5,19,startHr=0,duration=24)
+Years,Months,Days,Hours = lp.generate_WVDIAL_day_list(2017,5,24,startHr=0,duration=4)
 
 
 plotAsDays = False
@@ -51,7 +49,7 @@ use_diff_geo = False   # no diff geo correction after April ???
 use_geo = True
 
 use_mask = False
-SNRmask = 0.0  #SNR level used to decide what data points we keep in the final data product
+SNRmask = 2.0  #SNR level used to decide what data points we keep in the final data product
 countLim = 2.0
 
 MaxAlt = 6e3 #12e3
@@ -60,9 +58,9 @@ WV_Min_Alt = 350  # mask data below this altitude
 KlettAlt = 14e3  # altitude where Klett inversion starts
 
 # set bin sizes
-tres_hsrl = 0.5*60.0  # HSRL bin time resolution in seconds (2 sec typical base)
-tres_wv = 0.5*60.0    # HSRL bin time resolution in seconds (2 sec typical base)
-zres = 75  # bin range resolution in m (37.5 m typical base)
+tres_hsrl = 1.0*60.0  # HSRL bin time resolution in seconds (2 sec typical base)
+tres_wv = 1.0*60.0    # HSRL bin time resolution in seconds (2 sec typical base)
+zres = 37.5  # bin range resolution in m (37.5 m typical base)
 
 # parameters for WV Channels smoothing
 tsmooth_wv = 5*60 # convolution kernal time (HW sigma) in seconds
@@ -70,10 +68,39 @@ zsmooth_wv = 150  # convolution kernal range (HW sigma) in meters
 
 
 """
+Paths
+"""
+# path to data
+basepath = '/scr/eldora1/MSU_h2o_data/'
+
+# path for saving data
+save_data_path = '/h/eol/mhayman/DIAL/Processed_Data/'
+save_fig_path = '/h/eol/mhayman/DIAL/Processed_Data/Plots/'
+
+# path to sonde data
+sonde_path = '/scr/eldora1/HSRL_data/'
+
+# path to calibration files
+cal_path = '/h/eol/mhayman/PythonScripts/NCAR-LidarProcessing/calibrations/'
+cal_file = cal_path+'dlb_calvals_msu.json'
+
+
+# field labels
+FieldLabel_WV = 'FF'
+ON_FileBase = 'Online_Raw_Data.dat'
+OFF_FileBase = 'Offline_Raw_Data.dat'
+
+FieldLabel_HSRL = 'NF'
+MolFileBase = 'Online_Raw_Data.dat'
+CombFileBase = 'Offline_Raw_Data.dat'
+
+
+
+"""
 Begin Processing
 """
 
-ProcStart = datetime.datetime(Years[0],Months[0],Days[0],Hours[0][0])
+ProcStart = datetime.datetime(Years[0],Months[0],Days[0],np.int(Hours[0][0]),np.int(np.remainder(Hours[0][0],1.0)*60))
 
 DateLabel = ProcStart.strftime("%A %B %d, %Y")
 
@@ -106,19 +133,7 @@ BGIndex = -50; # negative number provides an index from the end of the array
 Cam = 0.00 # Cross talk of aerosols into the molecular channel - 0.005 on Dec 21 2016 after 18.5UTC
             # 0.033 found for 4/18/2017 11UTC extinction test case
 
-basepath = '/scr/eldora1/MSU_h2o_data/'
 
-FieldLabel_WV = 'FF'
-ON_FileBase = 'Online_Raw_Data.dat'
-OFF_FileBase = 'Offline_Raw_Data.dat'
-
-FieldLabel_HSRL = 'NF'
-MolFileBase = 'Online_Raw_Data.dat'
-CombFileBase = 'Offline_Raw_Data.dat'
-
-save_data_path = '/h/eol/mhayman/DIAL/Processed_Data/'
-save_fig_path = '/h/eol/mhayman/DIAL/Processed_Data/Plots/'
-sonde_path = '/scr/eldora1/HSRL_data/'
 
 
 if save_as_nc or save_figs:
@@ -176,7 +191,7 @@ OnLine.bg_subtract(BGIndex)
 
 OffLineRaw = OffLine.copy()
 OffLine.mask_range('index',np.arange(1))
-OffLine.conv(5.0*60.0/tres_wv/2,4.0/2,keep_mask=True)
+OffLine.conv(tsmooth_wv/tres_wv,zsmooth_wv/zres,keep_mask=True)
 #OffLine.mask_range('<=',300)
 OffLine.slice_time(HourLim*3600)
 #OffLine.nonlinear_correct(30e-9);
@@ -197,6 +212,23 @@ CombHi.bg_subtract(BGIndex)
 
 
 
+# HSRL data matched to WV-DIAL
+
+Mol2 = MolRaw.copy()
+Comb2 = CombRaw.copy()
+
+Mol2.mask_range('index',np.arange(1))
+Mol2.conv(tsmooth_wv/tres_wv,zsmooth_wv/zres,keep_mask=True)
+Mol2.slice_time(HourLim*3600)
+Mol2.bg_subtract(BGIndex)
+
+Comb2.nonlinear_correct(29.4e-9);
+Comb2.mask_range('index',np.arange(1))
+Comb2.conv(5.0*60.0/tres_wv/2,4.0/2,keep_mask=True)
+Comb2.slice_time(HourLim*3600)
+Comb2.bg_subtract(BGIndex)
+
+
 #####  NEED TO CORRECT TIME SLICES BASED ON ALL 4 PROFILES
 
 # WV-DIAL time slices
@@ -210,6 +242,12 @@ if CombHi.time.size > Molecular.time.size:
     CombHi.slice_time_index(time_lim=np.array([0,Molecular.time.size]))
 elif CombHi.time.size < Molecular.time.size:
     Molecular.slice_time_index(time_lim=np.array([0,CombHi.time.size-1]))
+
+# HSRL time slices
+if Comb2.time.size > Mol2.time.size:
+    Comb2.slice_time_index(time_lim=np.array([0,Mol2.time.size]))
+elif Comb2.time.size < Mol2.time.size:
+    Mol2.slice_time_index(time_lim=np.array([0,Comb2.time.size-1]))
 
 # mask based on raw counts - remove points where there are < 2 counts
 if use_mask:
@@ -265,6 +303,29 @@ CombRaw.slice_range_index(range_lim=[1,1e6])  # remove bottom bin
 #MolGain = 1.33  # updated 4/11/2017
 #MolGain = 3.17  # updated 5/12/2017
 Molecular.gain_scale(MolGain)
+
+
+Mol2.range_correct();
+Mol2.slice_range(range_lim=[0,MaxAlt])
+Mol2.slice_range_index(range_lim=[1,1e6])  # remove bottom bin
+Mol2.range_resample(delta_R=zres,update=True)
+
+Comb2.range_correct()
+Comb2.slice_range(range_lim=[0,MaxAlt])
+Comb2.slice_range_index(range_lim=[1,1e6])  # remove bottom bin
+Comb2.range_resample(delta_R=zres,update=True)
+
+Mol2.gain_scale(MolGain)
+
+# Calculate backscatter ratio to build a cloud gradient mask in WV data
+BSRwv = Comb2.profile/Mol2.profile
+dBSRwv = np.diff(BSRwv,axis=1)/Mol2.mean_dR  # range derivative of BSR
+BSRwv_interp = 0.5*(BSRwv[:,:-1]+BSRwv[:,1:])  # differential range interpolated BSR
+
+BSR_mask = np.zeros(BSRwv_interp.shape)
+BSR_mask[np.nonzero(np.abs(dBSRwv/BSRwv_interp) > 0.005) ] = 1
+BSR_mask[:,np.nonzero(Comb2.range_array < 1e3)] = 0  # don't use the mask below 1 km
+
 
 # Correct Molecular Cross Talk
 if Cam > 0:
@@ -344,6 +405,16 @@ Tsonde = temp.profile[isonde,:]
 nWV = wv.WaterVapor_Simple(OnLine,OffLine,Psonde,Tsonde)
 nWV.conv(0.3,2.0)
 nWV.mask_range('<=',WV_Min_Alt)
+
+if use_mask:
+    wv_snr_mask = np.zeros(nWV.profile.shape)
+    wv_snr_mask[np.nonzero(nWV.SNR() < SNRmask)] = 1
+    nWV.mask(wv_snr_mask)
+    nWV.mask(BSR_mask)
+    
+    aer_mask = np.zeros(aer_beta_dlb.profile.shape)
+    aer_mask[aer_beta_dlb.SNR() < SNRmask] = 1
+    aer_beta_dlb.mask(aer_mask)
 
 nWV.cat_range(SurfaceHumid)
 
@@ -460,7 +531,10 @@ else:
 #plt.xlabel('Time [UTC]')
 #plt.xlim(HourLim)
 
-lp.pcolor_profiles([nWV,aer_beta_dlb],climits=[[0,12],[-8.0,-4.0]],scale=['linear','log'],plotAsDays=plotAsDays)  # 
+#lp.pcolor_profiles([nWV,aer_beta_dlb],climits=[[0,12],[-8.0,-4.0]],scale=['linear','log'],plotAsDays=plotAsDays)  # Standard
+lp.pcolor_profiles([nWV,aer_beta_dlb],climits=[[0,12],[-7.4,-6.0]],scale=['linear','log'],plotAsDays=plotAsDays)  # Aerosol Enhanced
+#lp.pcolor_profiles([nWV,aer_beta_dlb],climits=[[0,12],[-8.0,-4.0]],scale=['linear','log'],plotAsDays=plotAsDays)  # Standard
+#lp.pcolor_profiles([nWV,aer_beta_dlb],climits=[[0,12],[-7.4,-6.0]],scale=['linear','log'],plotAsDays=plotAsDays,ylimits=[0,4],tlimits=[10,17.75])
 if save_figs:
     plt.savefig(figfilename+'_WaterVapor_AerosolBackscatter.png')
 #plt.figure(figsize=(15,5)); 
@@ -581,140 +655,154 @@ Geo Overlap
 #np.savez('geo_DLB_20161227',geo_prof=geo_prof,Day=Days,Month=Months,Year=Years,HourLim=HourLim,Hours=Hours)
 
 """
-SVD Denoising
+RD Correction
 """
-#
-#
-#
-#NpcaM = 3
-#NpcaC = 18
-#
-#FitMol0 = MolRaw.profile
-#MeanFitMol0 = np.mean(FitMol0,axis=0)
-#
-#[u,s,v] = np.linalg.svd((FitMol0-MeanFitMol0).T);
-#
-#weights = np.dot(u[:,:NpcaM].T,(FitMol0-MeanFitMol0).T).T
-#
-#Molsvd = np.dot(u[:,:NpcaM],weights.T).T
-#
-##FitComb0 = CombRaw.profile
-##MeanFitComb0 = np.mean(FitComb0,axis=0)
-##
-##[uC,sC,vC] = np.linalg.svd((FitComb0-MeanFitComb0).T);
-##
-##weightsC = np.dot(u[:,:NpcaC].T,(FitComb0-MeanFitComb0).T).T
-##
-##Combsvd = np.dot(uC[:,:NpcaC],weightsC.T).T
-#
-#### Optimization ###
-#
-#FitMol = MolRaw.profile
-#
-#FitComb = CombRaw.profile
-#
-#stopIndex = MolRaw.range_array.size
-#
-#MolEst = Molsvd+MeanFitMol0[np.newaxis,:]
-##CombEst = Combsvd+MeanFitComb0[np.newaxis,:]
-#
-#lamMol = np.array([0.1,1e-3])
-##lamCom = np.array([0.01,10e-3])
-#
-#FitProfMol = lambda x: ProfEstimateSVD2D(x,FitMol,MolEst,lamMol)
-#FitProfMolDeriv = lambda x: ProfEstimateSVD2D_prime(x,FitMol,MolEst,lamMol)
-#
-##bndsP = np.zeros((FitMol.size,2))
-##bndsP[:,1] = np.max(FitMol)*20
-#
-#x0 = np.random.rand(FitMol.size)-0.5
-#wMol = scipy.optimize.fmin_slsqp(FitProfMol,x0,fprime=FitProfMolDeriv,iter=200)
-#
-##FitProfComb = lambda x: ProfEstimateSVD2D(x,FitComb,CombEst,lamCom)
-##FitProfCombDeriv = lambda x: ProfEstimateSVD2D_prime(x,FitComb,CombEst,lamCom)
-##
-###bndsP = np.zeros((FitComb.size,2))
-###bndsP[:,1] = np.max(FitComb)*20
-##
-##x0 = np.random.rand(FitComb.size)-0.5
-##wCom = scipy.optimize.fmin_slsqp(FitProfComb,x0,fprime=FitProfCombDeriv,iter=500)
-##
-##(wCom.reshape(FitComb.shape)+CombEst)
-#
-#
-#####  Process SVD Profiles ####
-#MolSVD = lp.LidarProfile(wMol.reshape(FitMol.shape)+MolEst,MolRaw.time,label='SVD Denoised Molecular Backscatter Channel',descript = 'Unpolarization\nMolecular Backscatter Returns',bin0=-Roffset/dR,lidar='DLB-HSRL')
-##CombSVD = lp.LidarProfile(wCom.reshape(FitComb.shape)+CombEst,CombRaw.time,label='SVD Denoised Combined Backscatter Channel',descript = 'Unpolarization\nCombined Backscatter Returns',bin0=-Roffset/dR,lidar='DLB-HSRL')
-#CombSVD = CombRaw.copy()
-#
-#MolSVD.nonlinear_correct(38e-9);
-#MolSVD.bg_subtract(BGIndex)
-#
-#CombSVD.nonlinear_correct(29.4e-9);
-#CombSVD.bg_subtract(BGIndex)
-#
-#
-#if CombSVD.time.size > Molecular.time.size:
-#    CombSVD.slice_time_index(time_lim=np.array([0,MolSVD.time.size]))
-#elif CombSVD.time.size < MolSVD.time.size:
-#    MolSVD.slice_time_index(time_lim=np.array([0,CombSVD.time.size]))
-#
-##MolSVD.range_correct();
-#MolSVD.slice_range(range_lim=[0,MaxAlt])
-#MolSVD.range_resample(delta_R=zres*dR,update=True)
-##Molecular.conv(2.0,1.0)  # regrid by convolution
-#
-##CombHi.energy_normalize(TransEnergy*EnergyNormFactor)
-#if use_diff_geo:
-#    CombSVD.diff_geo_overlap_correct(diff_geo_corr,geo_reference='mol')
-##if use_geo:
-##    CombHi.geo_overlap_correct(geo_corr)
-##CombSVD.range_correct()
-#CombSVD.slice_range(range_lim=[0,MaxAlt])
-#CombSVD.range_resample(delta_R=zres*dR,update=True)
-##CombHi.conv(2.0,1.0)  # regrid by convolution
-#
-#
-#MolSVD.gain_scale(MolGain)
-#
-## Correct Molecular Cross Talk
-#if Cam > 0:
-#    lp.FilterCrossTalkCorrect(MolSVD,CombSVD,Cam,smart=True)
-##    Molecular.profile = 1.0/(1-Cam)*(Molecular.profile-CombHi.profile*Cam);
-#
-##lp.plotprofiles([CombSVD,MolSVD])
-#
-#
-#
-### note the operating wavelength of the lidar is 532 nm
-##beta_m_sonde = sonde_scale*5.45*(550.0/780.24)**4*1e-32*Psonde/(Tsonde*kB)
-#
-##plt.figure(); plt.semilogx(beta_m_sonde/np.nanmean(Molecular.profile,axis=0),Molecular.range_array)
-#if sonde_scale == 1.0:
-#    Mol_Beta_Scale = 1.36*0.925e-6*2.49e-11*MolSVD.mean_dt/(MolSVD.time[-1]-MolSVD.time[0])  # conversion from profile counts to backscatter cross section
-#else:
-#    Mol_Beta_Scale = 1.0/sonde_scale    
-#
-#BSR = (CombSVD.profile)/MolSVD.profile
-#
-#beta_bs = BSR*beta_m_sonde[np.newaxis,:]  # total backscatter including molecules
-##aer_beta_bs = (BSR-1)*beta_m_sonde[np.newaxis,:]    # only aerosol backscatter
-##aer_beta_bs[np.nonzero(aer_beta_bs <= 0)] = 1e-10;
-#
-#aer_beta_dlb_svd = lp.Calc_AerosolBackscatter(MolSVD,CombSVD,Temp=Tsonde,Pres=Psonde,beta_sonde_scale=sonde_scale)
-#
-#plt.figure(figsize=(15,5)); 
-#plt.pcolor(aer_beta_dlb_svd.time/time_scale,aer_beta_dlb_svd.range_array*1e-3, np.log10(aer_beta_dlb_svd.profile.T));
-#plt.colorbar()
-#plt.clim([-9,-3])
-#plt.title(DateLabel + ', ' + aer_beta_dlb_svd.lidar + ' Aerosol Backscatter Coefficient (SVD) [$m^{-1}sr^{-1}$]')
-#plt.ylabel('Altitude [km]')
-#if plotAsDays:
-#    plt.xlabel('Days [UTC]')
-#    plt.xlim(HourLim/24.0)
-#else:
-#    plt.xlabel('Time [UTC]')
-#    plt.xlim(HourLim)
-#    
-#plt.show()
 
+#import scipy as sp
+#
+#Mol2 = MolRaw.copy()
+#Comb2 = CombRaw.copy()
+#
+#Mol2.mask_range('index',np.arange(1))
+#Mol2.conv(tsmooth_wv/tres_wv,zsmooth_wv/zres,keep_mask=True)
+#Mol2.slice_time(HourLim*3600)
+#Mol2.bg_subtract(BGIndex)
+#
+#Comb2.nonlinear_correct(29.4e-9);
+#Comb2.mask_range('index',np.arange(1))
+#Comb2.conv(5.0*60.0/tres_wv/2,4.0/2,keep_mask=True)
+#Comb2.slice_time(HourLim*3600)
+#Comb2.bg_subtract(BGIndex)
+#
+#
+#
+## HSRL time slices
+#if Comb2.time.size > Mol2.time.size:
+#    Comb2.slice_time_index(time_lim=np.array([0,Mol2.time.size]))
+#elif Comb2.time.size < Mol2.time.size:
+#    Mol2.slice_time_index(time_lim=np.array([0,Comb2.time.size-1]))
+#
+#
+#Mol2.range_correct();
+#Mol2.slice_range(range_lim=[0,MaxAlt])
+##Mol2.slice_range_index(range_lim=[1,1e6])  # remove bottom bin
+#Mol2.range_resample(delta_R=zres,update=True)
+#
+#Comb2.range_correct()
+#Comb2.slice_range(range_lim=[0,MaxAlt])
+##Comb2.slice_range_index(range_lim=[1,1e6])  # remove bottom bin
+#Comb2.range_resample(delta_R=zres,update=True)
+#
+#Mol2.gain_scale(MolGain)
+#
+#BSRwv = Comb2.profile/Mol2.profile
+#
+#dBSRwv = np.diff(BSRwv,axis=1)/Mol2.mean_dR
+#BSRwv_int = 0.5*(BSRwv[:,:-1]+BSRwv[:,1:])  # differential range interpolated BSR
+#
+#varBSRwv = 1/Mol2.profile**2*(Comb2.profile_variance+BSRwv**2*Mol2.profile_variance)
+#var_dBSRwv = (varBSRwv[:,:-1]+varBSRwv[:,1:])/Mol2.mean_dR**2
+#var_BSRwv_int = (varBSRwv[:,:-1]+varBSRwv[:,1:])/4.0
+#
+#
+#WVcorr = (dBSRwv/BSRwv_int**2)  # correction term for wv extinction
+#var_WVcorr = 1/BSRwv_int**2*(var_dBSRwv+WVcorr**2*var_BSRwv_int)
+#
+#alpha_wv = np.diff(np.log(OnLine.profile/OffLine.profile),axis=1)/OnLine.mean_dR
+#
+#WVcorr_snr = np.abs(WVcorr/np.sqrt(var_WVcorr))
+#WVcorr_snr = np.convolve(WVcorr_snr[30,:],np.ones(4),'same')
+#WVcorr2 = WVcorr.copy()
+#WVcorr2[np.nonzero(WVcorr_snr < 3)] = 0
+#WVcorr3 = WVcorr*sp.special.erf(0.25*WVcorr_snr)
+#plt.figure(); 
+#plt.plot(WVcorr[200,:]); 
+#plt.plot(np.sqrt(var_WVcorr[200,:])); 
+#plt.plot(-np.sqrt(var_WVcorr[200,:]))
+#plt.plot(WVcorr2[200,:])
+#plt.plot(WVcorr3[200,:])
+#plt.plot(alpha_wv[200,:],'k--')
+#
+#nWVrd = wv.WaterVapor_Simple_RD_Test(OnLine,OffLine,Psonde,Tsonde,BSRwv)
+#nWVrd.conv(0.3,2.0)
+#nWVrd.mask_range('<=',WV_Min_Alt)
+#
+#nWVrd.cat_range(SurfaceHumid)
+#
+#lp.pcolor_profiles([nWVrd,aer_beta_dlb],climits=[[0,12],[-8.0,-4.0]],scale=['linear','log'],plotAsDays=plotAsDays)
+#
+#
+## compute frequencies from wavelength terms
+#dnu = np.linspace(-70e9,70e9,4000)  # array of spectrum relative to transmitted frequency
+#inuL = np.argmin(np.abs(dnu))  # index to the laser frequency in the spectrum
+#nuOff = lp.c/OffLine.wavelength  # Offline laser frequency
+#nuOn = lp.c/OnLine.wavelength   # Online laser frequency
+#
+##sigWV0 = lp.WV_ExtinctionFromHITRAN(np.array([nuOn,nuOff]),Tsonde,Psonde,nuLim=np.array([lp.c/831e-9,lp.c/825e-9]),freqnorm=True)
+#sigWV0 = lp.WV_ExtinctionFromHITRAN(np.array([nuOn,nuOff]),Tsonde,Psonde,nuLim=np.array([lp.c/828.5e-9,lp.c/828e-9]),freqnorm=True)
+#
+#dsig = sigWV0[:,0]-sigWV0[:,1]
+#
+#
+##dnu0 = np.linspace(lp.c/827.0e-9,lp.c/829.5e-9,1000)
+#dnu0 = np.arange(-3,3,0.05)*1e9
+#nuOn = lp.c/lambda_on[200]
+#nuOff = lp.c/lambda_off[200]
+#dnu = np.abs(np.mean(np.diff(dnu0)))
+#nu0on = nuOn+dnu0
+#nu0off = nuOff+dnu0
+#
+#Etalon_angle = 0.00*np.pi/180
+#
+#Filter = FO.FP_Etalon(1.0932e9,43.5e9,nuOff,efficiency=0.95,InWavelength=False)
+#Toffline = Filter.spectrum(dnu0+nuOff,InWavelength=False,aoi=Etalon_angle,transmit=True)
+#Tonline = Filter.spectrum(dnu0+nuOn,InWavelength=False,aoi=Etalon_angle,transmit=True)
+#
+#inu0 = np.argmin(np.abs(dnu0))
+#sigWV0on = lp.WV_ExtinctionFromHITRAN(nu0on,Tsonde,Psonde,nuLim=np.array([lp.c/835e-9,lp.c/825e-9]),freqnorm=True)
+#sigWV0off = lp.WV_ExtinctionFromHITRAN(nu0off,Tsonde,Psonde,nuLim=np.array([lp.c/835e-9,lp.c/825e-9]),freqnorm=True)
+#MolSpec = lp.RB_Spectrum(Tsonde,Psonde,lambda_on[200],nu=dnu0)
+#
+#
+##nWVprof = nWV.profile[200,1:]*lp.N_A/lp.mH2O
+#nWVprof = (-0.5*alpha_wv[150,:])/dsig[1:]
+#plt.figure();
+#plt.plot(nWVprof)
+#for ai in range(1000):
+#    Tmol1on = np.sum(np.exp(-2*np.cumsum(sigWV0on[1:,:]*nWVprof[:,np.newaxis],axis=0)*Mol2.mean_dR)*MolSpec[:,1:].T,axis=1)
+#    Tmol2on = np.sum(Tonline[np.newaxis,:]*np.exp(-2*np.cumsum(sigWV0on[1:,:]*nWVprof[:,np.newaxis],axis=0)*Mol2.mean_dR)*MolSpec[:,1:].T,axis=1)
+#    Tmol0on = Tonline[inu0]*np.exp(-2*np.cumsum(sigWV0on[1:,inu0]*nWVprof,axis=0)*Mol2.mean_dR)
+#    
+#    Tmol1off = np.sum(np.exp(-2*np.cumsum(sigWV0off[1:,:]*nWVprof[:,np.newaxis],axis=0)*Mol2.mean_dR)*MolSpec[:,1:].T,axis=1)
+#    Tmol2off = np.sum(Toffline[np.newaxis,:]*np.exp(-2*np.cumsum(sigWV0off[1:,:]*nWVprof[:,np.newaxis],axis=0)*Mol2.mean_dR)*MolSpec[:,1:].T,axis=1)
+#    Tmol0off = Toffline[inu0]*np.exp(-2*np.cumsum(sigWV0off[1:,inu0]*nWVprof,axis=0)*Mol2.mean_dR)
+#    
+#    eta_on = Tmol2on/Tmol0on
+#    eta_off = Tmol2off/Tmol0off
+#    
+#    WVcorr_eta = np.concatenate((np.array([0]),0.5*np.diff(np.log((BSRwv_int[150,:]+(eta_on-1.0))/(BSRwv_int[150,:]+(eta_off-1.0))))/Mol2.mean_dR))
+##    WVcorr_eta = 0.5*np.diff(np.log((BSRwv_int[150,:]+(eta_on-1.0))/(BSRwv_int[150,:]+(eta_off-1.0))))
+#    
+##    adj_area = np.nonzero(np.logical_and(np.abs(dBSRwv[150,:]/BSRwv_int[150,:])> 0.004,Mol2.range_array[1:]>1e3))[0]
+##    adj_area = np.nonzero(np.logical_and(BSRwv_int[150,:]> 2.0,Mol2.range_array[1:]>1e3))[0]
+##    adj_area = np.nonzero(np.abs(dBSRwv[150,:]/BSRwv_int[150,:])> 0.004)[0] 
+#    adj_area = np.nonzero(Mol2.range_array[1:]>1e3)[0]
+##    alpha_wv[150,adj_area] = alpha_wv[150,adj_area]-2*WVcorr_eta[adj_area-1]
+#    nWVprof[adj_area] = nWVprof[adj_area]-0.1*WVcorr_eta[adj_area-2]/dsig[adj_area]
+##    nWVprof = nWVprof+WVcorr_eta/dsig[1:]
+##    nWVprof = (-0.5*alpha_wv[150,:]+WVcorr_eta)/dsig[1:]
+#
+#plt.plot(nWVprof)
+##WVcorr_eta = 0.5*np.diff(np.log((1+1.0/BSRwv*(eta_on-1.0))/(1+1.0/BSRwv*(eta_off-1.0))))/Mol2.mean_dR
+#
+##plt.figure(); 
+##plt.plot(20*WVcorr_eta[200,:]); 
+##plt.plot(alpha_wv[200,:])
+##
+#plt.figure(); 
+#plt.semilogy(dnu0*1e-9,Tonline,'b',dnu0*1e-9,MolSpec[:,0]/MolSpec[inu0,0],'g',dnu0*1e-9,1e26*sigWV0on[0,:],'r')
+#
+#plt.semilogy((dnu0+nuOff-nuOn)*1e-9,Toffline,'b',(dnu0+nuOff-nuOn)*1e-9,MolSpec[:,0]/MolSpec[inu0,0],'g',(dnu0+nuOff-nuOn)*1e-9,1e26*sigWV0off[0,:],'r')
+#
+#plt.figure(); 
+#plt.semilogy(dnu0*1e-9,Toffline,dnu0*1e-9,MolSpec[:,0]/MolSpec[inu0,0],dnu0*1e-9,1e26*sigWV0off[0,:])

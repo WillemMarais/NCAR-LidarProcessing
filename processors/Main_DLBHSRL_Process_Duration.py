@@ -24,10 +24,7 @@ import json
 USER INPUTS
 """
 
-cal_path = '/h/eol/mhayman/PythonScripts/NCAR-LidarProcessing/calibrations/'
-cal_file = cal_path+'dlb_calvals_msu.json'
-
-Years,Months,Days,Hours = lp.generate_WVDIAL_day_list(2016,12,24,startHr=0,duration=24)
+Years,Months,Days,Hours = lp.generate_WVDIAL_day_list(2017,5,24,startHr=0,duration=24)
 
 plotAsDays = False
 getMLE_extinction = False
@@ -46,22 +43,50 @@ MaxAlt = 12e3 #12e3
 KlettAlt = 14e3  # altitude where Klett inversion starts
 
 tres = 1*60.0  # time resolution in seconds (2 sec typical base)
-zres = 75  # range resolution in m (37.5 m typical base)
+zres = 37.5  # range resolution in m (37.5 m typical base)
 
-use_diff_geo = True   # no diff geo correction after April ???
-use_geo = False
+use_diff_geo = False   # no diff geo correction after April ???
+use_geo = True
 
 use_mask = False
 SNRmask = 0.0  #SNR level used to decide what data points we keep in the final data product
 countLim = 2.0
 
+"""
+Paths
+"""
+# path to data
+basepath = '/scr/eldora1/MSU_h2o_data/'
+
+# path for saving data
+save_data_path = '/h/eol/mhayman/HSRL/DLBHSRL/Processed_Data/'
+save_fig_path = '/h/eol/mhayman/HSRL/DLBHSRL/Processed_Data/Plots/'
+
+# path to sonde data
+sonde_path = '/scr/eldora1/HSRL_data/'
+
+# path to calibration files
+cal_path = '/h/eol/mhayman/PythonScripts/NCAR-LidarProcessing/calibrations/'
+cal_file = cal_path+'dlb_calvals_msu.json'
+
+# field labels
+FieldLabel = 'NF'
+MolFileBase = 'Online_Raw_Data.dat'
+CombFileBase = 'Offline_Raw_Data.dat'
 
 """
 Begin Processing
 """
 
+if run_geo_cal:
+    print("Running geo calibration.  Overriding settings for:\n MaxAlt\n use_mask\n use_geo\n zres")
+    zres = 0  # set bin resolution to minimum
+    MaxAlt = 30e3  # set altitude range to maximum
+    use_geo = False  # disable geo correction
+    use_mask = False  # disable masking
 
-ProcStart = datetime.datetime(Years[0],Months[0],Days[0],Hours[0][0])
+
+ProcStart = datetime.datetime(Years[0],Months[0],Days[0],np.int(Hours[0][0]),np.int(np.remainder(Hours[0][0],1.0)*60))
 
 DateLabel = ProcStart.strftime("%A %B %d, %Y")
 
@@ -94,10 +119,6 @@ Cam = 0.00 # Cross talk of aerosols into the molecular channel - 0.005 on Dec 21
 
 zres = np.max([np.round(zres/dR),1.0])*dR  #only allow z resolution to be integer increments of the MCS range
 
-save_data_path = '/h/eol/mhayman/HSRL/DLBHSRL/Processed_Data/'
-save_fig_path = '/h/eol/mhayman/HSRL/DLBHSRL/Processed_Data/Plots/'
-sonde_path = '/scr/eldora1/HSRL_data/'
-
 
 if use_diff_geo:
     diff_geo_data = np.load(diff_geo_file)
@@ -115,10 +136,7 @@ if use_geo:
 else:
     sonde_scale=1.0
 
-basepath = '/scr/eldora1/MSU_h2o_data/'
-FieldLabel = 'NF'
-MolFileBase = 'Online_Raw_Data.dat'
-CombFileBase = 'Offline_Raw_Data.dat'
+
 
 # define time grid for lidar signal processing to occur
 MasterTime = np.arange(Hours[0,0]*3600,Days.size*24*3600-(24-Hours[-1,-1])*3600+tres,tres)
@@ -323,7 +341,10 @@ if plotAsDays:
 else:
     time_scale = 3600.0
 
-
+if use_mask:
+    aer_mask = np.zeros(aer_beta_dlb.profile.shape)
+    aer_mask[aer_beta_dlb.SNR() < SNRmask] = 1
+    aer_beta_dlb.mask(aer_mask)
 
 #lp.pcolor_profiles([Molecular,CombHi],climits=[[8,12],[8,12]],plotAsDays=plotAsDays)
 
@@ -509,10 +530,10 @@ lidar.
 ## 12/26/2016 - 20.4-1.2 UT
 #
 
-if run_geo_cal and not use_geo and zres==1.0 and MaxAlt > 25:
+if run_geo_cal:
     Mol_Beta_Scale = 1.0
     beta_m_sonde = beta_mol_sonde.profile[isonde,:]
-    lin_fit_lower = 150
+    lin_fit_lower = 100
     lin_fit_upper = 330
     
     plt.figure(); 
@@ -550,7 +571,7 @@ if run_geo_cal and not use_geo and zres==1.0 and MaxAlt > 25:
     xfit = np.arange(MolInt.profile[0,lin_fit_lower:lin_fit_upper].size)
     yfit = geo_prof[lin_fit_lower:lin_fit_upper]
     wfit = 1.0/np.sqrt(MolInt.profile_variance[0,lin_fit_lower:lin_fit_upper].flatten())
-    wfit[0] = 10*np.max(wfit)
+    wfit[0:5] = 10*np.max(wfit)
     #pfit = lp.polyfit_with_fixed_points(1,xfit,yfit, np.array([0]) ,np.array([geo_prof[200]]))
     pfit = np.polyfit(xfit,yfit,1,w=wfit)
     xprof = np.arange(MolInt.profile[0,lin_fit_lower:].size)
@@ -570,4 +591,4 @@ if run_geo_cal and not use_geo and zres==1.0 and MaxAlt > 25:
     plt.plot(geo_prof[:,1])
     plt.plot(np.sqrt(var_geo_prof))
     
-#    np.savez('/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/geo_DLB_20170512',geo_prof=geo_prof,Day=Days,Month=Months,Year=Years,HourLim=HourLim,Hours=Hours,Mol_Beta_Scale=Mol_Beta_Scale,tres=tres,zres=zres,Nprof=Molecular.time.size)
+#    np.savez('/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/calibrations/geo_DLB_20170524',geo_prof=geo_prof,Day=Days,Month=Months,Year=Years,HourLim=HourLim,Hours=Hours,Mol_Beta_Scale=Mol_Beta_Scale,tres=tres,zres=zres,Nprof=Molecular.time.size)
