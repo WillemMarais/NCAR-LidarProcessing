@@ -848,14 +848,20 @@ class LidarProfile():
         z = np.arange(-np.round(4*sigz),np.round(4*sigz))  
         
         kconv_t = np.exp(-t**2*1.0/(sigt**2))
-        if np.sum(kconv_t) == 0:
-            it0 = np.argmin(np.abs(t))
-            kconv_t[it0] = 1.0
+        if kconv_t.size > 0:
+            if np.sum(kconv_t) == 0:
+                it0 = np.argmin(np.abs(t))
+                kconv_t[it0] = 1.0
+        else: 
+            kconv_t = np.ones(1)
             
         kconv_z = np.exp(-z**2*1.0/(sigz**2))
-        if np.sum(kconv_z) == 0:
-            iz0 = np.argmin(np.abs(z))
-            kconv_z[iz0] = 1.0
+        if kconv_z.size > 0:
+            if np.sum(kconv_z) == 0:
+                iz0 = np.argmin(np.abs(z))
+                kconv_z[iz0] = 1.0
+        else:
+            kconv_z = np.ones(1)
             
         kconv = kconv_t[:,np.newaxis]*kconv_z[np.newaxis,:]
         
