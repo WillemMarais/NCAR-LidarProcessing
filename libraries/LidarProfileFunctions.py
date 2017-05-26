@@ -842,33 +842,12 @@ class LidarProfile():
         Generates a Gaussian convolution kernel for
         standard deviations sigt and sigz in units of grid points.
         This should probably be moved to be an independent function
+        
+        Replaced by the function get_conv_kernel which is now called
+        directly from this method
         """        
+        z,t,kconv = get_conv_kernel(sigt,sigz,norm=True)
         
-        t = np.arange(-np.round(4*sigt),np.round(4*sigt))      
-        z = np.arange(-np.round(4*sigz),np.round(4*sigz))  
-        
-        kconv_t = np.exp(-t**2*1.0/(sigt**2))
-        if kconv_t.size > 0:
-            if np.sum(kconv_t) == 0:
-                it0 = np.argmin(np.abs(t))
-                kconv_t[it0] = 1.0
-        else: 
-            kconv_t = np.ones(1)
-            
-        kconv_z = np.exp(-z**2*1.0/(sigz**2))
-        if kconv_z.size > 0:
-            if np.sum(kconv_z) == 0:
-                iz0 = np.argmin(np.abs(z))
-                kconv_z[iz0] = 1.0
-        else:
-            kconv_z = np.ones(1)
-            
-        kconv = kconv_t[:,np.newaxis]*kconv_z[np.newaxis,:]
-        
-#        zz,tt = np.meshgrid(z,t)
-#        kconv = np.exp(-tt**2*1.0/(sigt**2)-zz**2*1.0/(sigz**2))
-        if norm:
-            kconv = kconv/(1.0*np.sum(kconv))
         
         return z,t,kconv
         
@@ -1038,6 +1017,58 @@ class profile_netcdf():
         tmp = profile_netcdf(self)
         return tmp
 
+
+def get_conv_kernel(sigt,sigz,norm=True):
+        """
+        Generates a Gaussian convolution kernel for
+        standard deviations sigt and sigz in units of grid points.
+        This should probably be moved to be an independent function
+        """        
+        
+        t = np.arange(-np.round(4*sigt),np.round(4*sigt))      
+        z = np.arange(-np.round(4*sigz),np.round(4*sigz))  
+        
+        kconv_t = np.exp(-t**2*1.0/(sigt**2))
+        if kconv_t.size > 0:
+            if np.sum(kconv_t) == 0:
+                it0 = np.argmin(np.abs(t))
+                kconv_t[it0] = 1.0
+        else: 
+            kconv_t = np.ones(1)
+            
+        kconv_z = np.exp(-z**2*1.0/(sigz**2))
+        if kconv_z.size > 0:
+            if np.sum(kconv_z) == 0:
+                iz0 = np.argmin(np.abs(z))
+                kconv_z[iz0] = 1.0
+        else:
+            kconv_z = np.ones(1)
+            
+        kconv = kconv_t[:,np.newaxis]*kconv_z[np.newaxis,:]
+        
+#        zz,tt = np.meshgrid(z,t)
+#        kconv = np.exp(-tt**2*1.0/(sigt**2)-zz**2*1.0/(sigz**2))
+        if norm:
+            kconv = kconv/(1.0*np.sum(kconv))
+        
+        return z,t,kconv
+def conv2d(Data,kconv,keep_mask=True):
+    """
+    performs a 2d convolution on data using the supplied kernel
+    Automatically adjusts the scale at the edges
+    """
+
+    if hasattr(Data,'mask'):
+        prof_mask = Data.mask
+        scale = np.ma.array(np.ones(Data.shape),mask=prof_mask)
+        scale = scipy.signal.convolve2d(scale.filled(0),kconv,mode='same')  # adjustment factor for the number of points included due to masking
+        Data = scipy.signal.convolve2d(Data.filled(0),kconv,mode='same')/scale
+        if keep_mask:
+            Data = np.ma.array(Data,mask=prof_mask)
+    else:
+        Data = scipy.signal.convolve2d(Data,kconv,mode='same')
+    return Data
+
 def create_ncfilename(ncbase,Years,Months,Days,Hours,tag=''):
     """
     filestring = create_ncfilename(ncbase,Years,Months,Days,Hours)
@@ -1206,7 +1237,7 @@ def pcolor_profiles(proflist,ylimits=[0,np.nan],tlimits=[np.nan,np.nan],climits=
         ylimits[1] = ymax
         
     # scale figure dimensions based on time and altitude dimensions
-    time_span = tlimits[1]/span_scale-tlimits[0]/span_scale  # time domain of plotted data
+    time_span = tlimits[1]*span_scale-tlimits[0]*span_scale  # time domain of plotted data
     range_span = ylimits[1]-ylimits[0]  # range domain of plotted data
     
     # adjust title line based on the amount of plotted time data
@@ -2263,14 +2294,75 @@ def get_beta_m_sonde(Profile,Years,Months,Days,sonde_basepath,interp=False,retur
         pres.diff_geo_Refs = ['none']           # list containing the differential geo overlap reference sources (answers: differential to what?)
         pres.profile_type =  '$Pa$'
         
-        temp.bg = np.zeros(temp.bg.shape) # profile background levels
+        pres.bg = np.zeros(temp.bg.shape) # profile background levels
         
-        temp.descript = 'Sonde Measured Pressure in Pa'
-        temp.label = 'Pressure'
+        pres.descript = 'Sonde Measured Pressure in Pa'
+        pres.label = 'Pressure'
     
         return beta_mol,tref,sonde_index_u,temp,pres,sonde_index
     
-
+def get_beta_m_model(Profile,base_temp,base_pres,interp=False,returnTP=False):
+    """
+    Uses standard atmosphere and base station to obtain a model of the
+    molecular backscatter, temperature and pressure
+    
+    Currently requires base_temp and base_pres are supplied with the same
+    time dimension as the actual profile.
+    """    
+    
+    
+    TsondeR = base_temp[:,np.newaxis]-0.0065*Profile.range_array[np.newaxis,:]
+    PsondeR = base_pres[:,np.newaxis]*(base_temp[:,np.newaxis]/TsondeR)**(-5.5)/9.86923e-6  # give pressure in Pa
+    beta_m_sonde = 5.45*(550.0e-9/Profile.wavelength)**4*1e-32*PsondeR/(TsondeR*kB)
+    
+    beta_mol = Profile.copy()
+    beta_mol.profile = beta_m_sonde.copy()
+    beta_mol.profile_variance = (beta_mol.profile*0.01)**2  # force SNR of 100 in sonde profile.
+    beta_mol.ProcessingStatus = []     # status of highest level of lidar profile - updates at each processing stage
+    beta_mol.lidar = 'ideal atmosphere'
+    
+    beta_mol.diff_geo_Refs = ['none']           # list containing the differential geo overlap reference sources (answers: differential to what?)
+    beta_mol.profile_type =  '$m^{-1}sr^{-1}$'
+    
+    beta_mol.bg = np.zeros(beta_mol.bg.shape) # profile background levels
+    
+    beta_mol.descript = 'Ideal Atmosphere Molecular Backscatter Coefficient in m^-1 sr^-1'
+    beta_mol.label = 'Molecular Backscatter Coefficient'
+    
+    if not returnTP:
+        return beta_mol
+    
+    else:
+    
+        temp = Profile.copy()
+        temp.profile = TsondeR.copy()
+        temp.profile_variance = (temp.profile*0.1)**2  # force SNR of 10 in sonde profile.
+        temp.ProcessingStatus = []     # status of highest level of lidar profile - updates at each processing stage
+        temp.lidar = 'ideal atmosphere'
+        
+        temp.diff_geo_Refs = ['none']           # list containing the differential geo overlap reference sources (answers: differential to what?)
+        temp.profile_type =  '$K$'
+        
+        temp.bg = np.zeros(temp.bg.shape) # profile background levels
+        
+        temp.descript = 'Ideal Atmosphere Temperature in K'
+        temp.label = 'Temperature'
+        
+        pres = Profile.copy()
+        pres.profile = PsondeR.copy()
+        pres.profile_variance = (pres.profile*0.1)**2  # force SNR of 10 in sonde profile.
+        pres.ProcessingStatus = []     # status of highest level of lidar profile - updates at each processing stage
+        pres.lidar = 'ideal atmosphere'
+        
+        pres.diff_geo_Refs = ['none']           # list containing the differential geo overlap reference sources (answers: differential to what?)
+        pres.profile_type =  '$Pa$'
+        
+        pres.bg = np.zeros(temp.bg.shape) # profile background levels
+        
+        pres.descript = 'Ideal Atmosphere Pressure in Pa'
+        pres.label = 'Pressure'
+    
+        return beta_mol,temp,pres
 
 def get_calval(data_date,json_data,cal_name,cond = [],returnlist=['value']):
     """
@@ -2300,7 +2392,7 @@ def get_calval(data_date,json_data,cal_name,cond = [],returnlist=['value']):
     else:
         test_not_equal = False
             
-    if cal_name == 'Molecular Gain' or cal_name == 'Geo File Record':        
+    if cal_name == 'Molecular Gain' or cal_name == 'Geo File Record' or cal_name == 'Location':        
         for ai in range(len(json_data[cal_name])):
             if len(cond) == 0:
                 cond_true = True

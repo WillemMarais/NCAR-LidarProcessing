@@ -36,38 +36,14 @@ def WaterVapor_Simple(OnLine,OffLine,Psonde,Tsonde):
     """
     
     # compute frequencies from wavelength terms
-    dnu = np.linspace(-70e9,70e9,4000)  # array of spectrum relative to transmitted frequency
-    inuL = np.argmin(np.abs(dnu))  # index to the laser frequency in the spectrum
     nuOff = lp.c/OffLine.wavelength  # Offline laser frequency
     nuOn = lp.c/OnLine.wavelength   # Online laser frequency
-    
-    
-    
-#    Filter = FO.FP_Etalon(1.0932e9,43.5e9,nuOff,efficiency=0.95,InWavelength=False)
-#    Toffline = Filter.spectrum(dnu+nuOff,InWavelength=False,aoi=0.0,transmit=True)
-#    Tonline = Filter.spectrum(dnu+nuOn,InWavelength=False,aoi=0.0,transmit=True)
-    
-    nuWV = np.linspace(lp.c/828.5e-9,lp.c/828e-9,500)   # set region in hitran profile to use
-    # sigWV is a 2D array with laser frequency on the 0 axis and range on the 1 axis. 
-    sigWV = lp.WV_ExtinctionFromHITRAN(nuWV,Tsonde,Psonde,freqnorm=True) #,nuLim=np.array([lp.c/835e-9,lp.c/825e-9]))    # get the WV spectrum from hitran data
-    
-    sigF = sp.interpolate.interp1d(nuWV,sigWV)  # set up frequency interpolation for the two DIAL wavelengths
-    sigWVOn = sigF(dnu+nuOn).T  # get the absorption spectrum around the online wavelength
-    sigWVOff = sigF(dnu+nuOff).T  # get the absorption spectrum around the offline wavelength
-    
-    #sigWVOn = lp.WV_ExtinctionFromHITRAN(nuOn+dnu,Tsonde,Psonde) 
-    #sigWVOff = lp.WV_ExtinctionFromHITRAN(nuOff+dnu,Tsonde,Psonde)
-    
-    sigOn = sigWVOn[inuL,:]
-    sigOff = sigWVOff[inuL,:]
 
-    
-#    sigWV = lp.WV_ExtinctionFromHITRAN(np.array([nuOn,nuOff]),Tsonde,Psonde,nuLim=np.array([lp.c/835e-9,lp.c/825e-9])) 
-#    sigOn = sigWV[:,0]
-#    sigOff = sigWV[:,1]
-    
-    
-    
+
+    sigWV0 = lp.WV_ExtinctionFromHITRAN(np.array([nuOn,nuOff]),Tsonde,Psonde,nuLim=np.array([lp.c/828.5e-9,lp.c/828e-9]),freqnorm=True)
+    sigOn = sigWV0[:,0]
+    sigOff= sigWV0[:,1]
+
     range_diff = OnLine.range_array[1:]-OnLine.mean_dR/2.0  # range grid for diffentiated signals
     dsig = np.interp(range_diff,OnLine.range_array,sigOn-sigOff)  # interpolate difference in absorption to range_diff grid points
     
@@ -173,154 +149,210 @@ def WaterVapor_Simple_RD_Test(OnLine,OffLine,Psonde,Tsonde,BSR):
     
 #    nWV.conv(2.0,3.0)  # low pass filter if desired
     return nWV
-    
-def WaterVapor_2D(OnLine,OffLine,lam_On,lam_Off,pres,temp,sonde_index):
+
+
+def WaterVapor_2D(OnLine,OffLine,lam_On,lam_Off,pres,temp):
     """
-    Performs a direct inversion of the water vapor profile using
-    2D radiosonde profiles and time resolved wavelength information.
+    Performs a simple compuation of the water vapor profile using
+    a single radiosonde and assumes the wavelength is constant over the
+    profile.
     
     WaterVapor_Simple(OnLine,OffLine,Psonde,Tsonde)
     OnLine - the online lidar profile
     OffLine - the offline lidar profile
     
-    lam_On - online wavelength resolved in time
-    lam_Off - offline wavelength resolved in time    
-    
-    pres - pressure in (in atm) obtained from a sonde or model
+    Psonde - pressure in (in atm) obtained from a sonde or model
             altitude profile is matched to the lidar profiles
-    temp - temperature (in K) obtainted from a sonde or model
+    Tsonde - temperature (in K) obtainted from a sonde or model
             altitude profile is matched to the lidar profiles
-    
-    sonde_index - time array indicating the sonde used as reference for the profile
     
     returns
     nWV - a lidar profile containing the directly computed water vapor in g/m^3
     
     """
     
-    # compute frequencies from wavelength terms
-#    dnu = np.linspace(-7e9,7e9,400)  # array of spectrum relative to transmitted frequency
-#    inuL = np.argmin(np.abs(dnu))  # index to the laser frequency in the spectrum
-#    nuOff = lp.c/lam_Off  # Offline laser frequency
-#    nuOn = lp.c/lam_On   # Online laser frequency
-    
-    
-    
-#    Filter = FO.FP_Etalon(1.0932e9,43.5e9,nuOff,efficiency=0.95,InWavelength=False)
-#    Toffline = Filter.spectrum(dnu+nuOff,InWavelength=False,aoi=0.0,transmit=True)
-#    Tonline = Filter.spectrum(dnu+nuOn,InWavelength=False,aoi=0.0,transmit=True)
-#    
-#    nuWV = np.linspace(lp.c/828.5e-9,lp.c/828e-9,500)   # set region in hitran profile to use
-#    
-#    for ai in range(OnLine.time.size):
-#        # sigWV is a 2D array with laser frequency on the 0 axis and range on the 1 axis. 
-#        sigWV = lp.WV_ExtinctionFromHITRAN(nuWV,temp.profile[ai,:],pres.profile[ai,:])    # get the WV spectrum from hitran data
-#        
-#        sigF = sp.interpolate.interp1d(nuWV,sigWV)  # set up frequency interpolation for the two DIAL wavelengths
-#        sigWVOn = sigF(dnu+nuOn).T  # get the absorption spectrum around the online wavelength
-#        sigWVOff = sigF(dnu+nuOff).T  # get the absorption spectrum around the offline wavelength
-#        
-#        #sigWVOn = lp.WV_ExtinctionFromHITRAN(nuOn+dnu,Tsonde,Psonde) 
-#        #sigWVOff = lp.WV_ExtinctionFromHITRAN(nuOff+dnu,Tsonde,Psonde)
-#        
-#        sigOn = sigWVOn[inuL,:]
-#        sigOff = sigWVOff[inuL,:]
-#        
-#        
-#        
-#    range_diff = OnLine.range_array[1:]-OnLine.mean_dR/2.0  # range grid for diffentiated signals
-#    dsig = np.interp(range_diff,OnLine.range_array,sigOn-sigOff)  # interpolate difference in absorption to range_diff grid points
-    
-    
-    sigOn,sigOff,sigOn_dr,sigOff_dr,range_diff = Get_Absorption_2D(lam_On,lam_Off,pres,temp,sonde_index)    
-    dsig = sigOn_dr - sigOff_dr
-    
+    range_diff = OnLine.range_array[1:]-OnLine.mean_dR/2.0  # range grid for diffentiated signals
     # create the water vapor profile
     nWV = OnLine.copy()
-    nWV.profile = -1.0/(2*(dsig)[np.newaxis,:])*np.diff(np.log(OnLine.profile/OffLine.profile),axis=1)/OnLine.mean_dR
     nWV.label = 'Water Vapor Number Density'
     nWV.descript = 'Water Vapor Number Density'
     nWV.profile_type = '$m^{-3}$'
     nWV.range_array = range_diff
+
+    dsig = np.zeros((nWV.time.size,nWV.range_array.size))
+    for ai in range(OnLine.time.size):
+        # compute frequencies from wavelength terms
+        nuOff = lp.c/lam_Off[ai]  # Offline laser frequency
+        nuOn = lp.c/lam_On[ai]   # Online laser frequency
+        sigWV0 = lp.WV_ExtinctionFromHITRAN(np.array([nuOn,nuOff]),temp[ai,:],pres[ai,:],nuLim=np.array([lp.c/828.5e-9,lp.c/828e-9]),freqnorm=True)
+        sigOn = sigWV0[:,0]
+        sigOff= sigWV0[:,1]
+    
+        
+        dsig[ai,:] = np.interp(range_diff,OnLine.range_array,sigOn-sigOff)  # interpolate difference in absorption to range_diff grid points
+        
+    nWV.profile = -1.0/(2*(dsig))*np.diff(np.log(OnLine.profile/OffLine.profile),axis=1)/OnLine.mean_dR
+    nWV.profile_variance = (0.5/(dsig)/OnLine.mean_dR)**2*( \
+        OnLine.profile_variance[:,1:]/OnLine.profile[:,1:]**2 + \
+        OnLine.profile_variance[:,:-1]/OnLine.profile[:,:-1]**2 + \
+        OffLine.profile_variance[:,1:]/OffLine.profile[:,1:]**2 + \
+        OffLine.profile_variance[:,:-1]/OffLine.profile[:,:-1]**2)
     
     # convert to g/m^3
     nWV.gain_scale(lp.mH2O/lp.N_A)  
     nWV.profile_type = '$g/m^{3}$'
+    nWV.label = 'Absolute Humidity'
+    nWV.descript = 'Absolute Humidity'
     
-#    nWV.conv(2.0,3.0)  # low pass filter if desired
     return nWV
     
-def Get_Absorption_2D(lam_On,lam_Off,pres,temp,sonde_index):
-    """
-    Obtain the absorption cross section of water vapor at the
-    Online and Offline wavelengths provided for a 2D pressure and temeprature
-    profile
-    """    
-    
-    # get time indices where sonde reference changes
-    ichange = np.nonzero(np.diff(sonde_index)>=1)[0]+1
-    
-    # find all the instances where the wavelength changes significanty
-    dlam = 0.0001e-9  # allowed change in wavelength before reestimating the WV absorption
-    no_on_change = False  # flag indicating no more changes are found (terminate loop)
-    no_off_change = False
-    ref_on = lam_On[0]
-    ref_off = lam_Off[0]
-    i_ref = 0
-    i_on = np.array([0])
-    i_off = np.array([0])
-    i_lam_change = np.array([])
-    while not no_on_change and not no_off_change:
-        i_ref = np.nanmin([i_on[0]+i_ref+1,i_off[0]+i_ref+1])
-        ref_on = lam_On[i_ref]
-        ref_off = lam_Off[i_ref]
-        i_lam_change = np.concatenate((i_lam_change,np.array([i_ref])))
-        i_on = np.nonzero(np.abs(np.cumsum(lam_On[i_ref+1:]-ref_on))>dlam)[0]
-        if len(i_on) == 0:
-            i_on = np.nan
-            no_on_change = True
-            
-        i_off = np.nonzero(np.abs(np.cumsum(lam_Off[i_ref+1:]-ref_off))>dlam)[0] 
-        if len(i_off) == 0:
-            i_off = np.nan
-            no_off_change = True
-            
-            
-        
-#    dnu = np.linspace(-7e9,7e9,400)  # array of spectrum relative to transmitted frequency
-#    inuL = np.argmin(np.abs(dnu))  # index to the laser frequency in the spectrum
-    nuWV = np.linspace(lp.c/828.5e-9,lp.c/828e-9,500)
-     
-    nuOff = lp.c/lam_Off  # Offline laser frequency
-    nuOn = lp.c/lam_On   # Online laser frequency     
-    
-    # cross sections on standard range grid
-    sigOn = np.zeros(pres.profile.shape)
-    sigOff = np.zeros(pres.profile.shape)
-    
-    # cross sections on grid for range differentiated profiles
-    sigOn_dr = np.zeros((pres.profile.shape[0],pres.profile.shape[1]-1))
-    sigOff_dr = np.zeros((pres.profile.shape[0],pres.profile.shape[1]-1))
-    
-    range_diff = pres.range_array[1:]-pres.mean_dR/2.0  # range grid for diffentiated signals
-     
-    for ai in range(pres.time.size):
-        # sigWV is a 2D array with laser frequency on the 0 axis and range on the 1 axis. 
-        sigWV = lp.WV_ExtinctionFromHITRAN(nuWV,temp.profile[ai,:],pres.profile[ai,:])    # get the WV spectrum from hitran data
-        
-        sigF = sp.interpolate.interp1d(nuWV,sigWV)  # set up frequency interpolation for the two DIAL wavelengths
-        sigOn[ai,:] = sigF(nuOn[ai])
-        sigOff[ai,:] = sigF(nuOff[ai])
-        
-        sigOn_dr[ai,:] = np.interp(range_diff,pres.range_array,sigOn[ai,:])
-        sigOff_dr[ai,:] = np.interp(range_diff,pres.range_array,sigOff[ai,:])
-#        sigWVOn = sigF(dnu+nuOn[ai]).T  # get the absorption spectrum around the online wavelength
-#        sigWVOff = sigF(dnu+nuOff[ai]).T  # get the absorption spectrum around the offline wavelength
-        
-#        sigOn[ai,:] = sigWVOn[inuL,:]
-#        sigOff[ai,:] = sigWVOff[inuL,:]
-        
-    return sigOn,sigOff,sigOn_dr,sigOff_dr,range_diff
+#def WaterVapor_2D(OnLine,OffLine,lam_On,lam_Off,pres,temp,sonde_index):
+#    """
+#    Performs a direct inversion of the water vapor profile using
+#    2D radiosonde profiles and time resolved wavelength information.
+#    
+#    WaterVapor_Simple(OnLine,OffLine,Psonde,Tsonde)
+#    OnLine - the online lidar profile
+#    OffLine - the offline lidar profile
+#    
+#    lam_On - online wavelength resolved in time
+#    lam_Off - offline wavelength resolved in time    
+#    
+#    pres - pressure in (in atm) obtained from a sonde or model
+#            altitude profile is matched to the lidar profiles
+#    temp - temperature (in K) obtainted from a sonde or model
+#            altitude profile is matched to the lidar profiles
+#    
+#    sonde_index - time array indicating the sonde used as reference for the profile
+#    
+#    returns
+#    nWV - a lidar profile containing the directly computed water vapor in g/m^3
+#    
+#    """
+#    
+#    # compute frequencies from wavelength terms
+##    dnu = np.linspace(-7e9,7e9,400)  # array of spectrum relative to transmitted frequency
+##    inuL = np.argmin(np.abs(dnu))  # index to the laser frequency in the spectrum
+##    nuOff = lp.c/lam_Off  # Offline laser frequency
+##    nuOn = lp.c/lam_On   # Online laser frequency
+#    
+#    
+#    
+##    Filter = FO.FP_Etalon(1.0932e9,43.5e9,nuOff,efficiency=0.95,InWavelength=False)
+##    Toffline = Filter.spectrum(dnu+nuOff,InWavelength=False,aoi=0.0,transmit=True)
+##    Tonline = Filter.spectrum(dnu+nuOn,InWavelength=False,aoi=0.0,transmit=True)
+##    
+##    nuWV = np.linspace(lp.c/828.5e-9,lp.c/828e-9,500)   # set region in hitran profile to use
+##    
+##    for ai in range(OnLine.time.size):
+##        # sigWV is a 2D array with laser frequency on the 0 axis and range on the 1 axis. 
+##        sigWV = lp.WV_ExtinctionFromHITRAN(nuWV,temp.profile[ai,:],pres.profile[ai,:])    # get the WV spectrum from hitran data
+##        
+##        sigF = sp.interpolate.interp1d(nuWV,sigWV)  # set up frequency interpolation for the two DIAL wavelengths
+##        sigWVOn = sigF(dnu+nuOn).T  # get the absorption spectrum around the online wavelength
+##        sigWVOff = sigF(dnu+nuOff).T  # get the absorption spectrum around the offline wavelength
+##        
+##        #sigWVOn = lp.WV_ExtinctionFromHITRAN(nuOn+dnu,Tsonde,Psonde) 
+##        #sigWVOff = lp.WV_ExtinctionFromHITRAN(nuOff+dnu,Tsonde,Psonde)
+##        
+##        sigOn = sigWVOn[inuL,:]
+##        sigOff = sigWVOff[inuL,:]
+##        
+##        
+##        
+##    range_diff = OnLine.range_array[1:]-OnLine.mean_dR/2.0  # range grid for diffentiated signals
+##    dsig = np.interp(range_diff,OnLine.range_array,sigOn-sigOff)  # interpolate difference in absorption to range_diff grid points
+#    
+#    
+#    sigOn,sigOff,sigOn_dr,sigOff_dr,range_diff = Get_Absorption_2D(lam_On,lam_Off,pres,temp,sonde_index)    
+#    dsig = sigOn_dr - sigOff_dr
+#    
+#    # create the water vapor profile
+#    nWV = OnLine.copy()
+#    nWV.profile = -1.0/(2*(dsig)[np.newaxis,:])*np.diff(np.log(OnLine.profile/OffLine.profile),axis=1)/OnLine.mean_dR
+#    nWV.label = 'Water Vapor Number Density'
+#    nWV.descript = 'Water Vapor Number Density'
+#    nWV.profile_type = '$m^{-3}$'
+#    nWV.range_array = range_diff
+#    
+#    # convert to g/m^3
+#    nWV.gain_scale(lp.mH2O/lp.N_A)  
+#    nWV.profile_type = '$g/m^{3}$'
+#    
+##    nWV.conv(2.0,3.0)  # low pass filter if desired
+#    return nWV
+#    
+#def Get_Absorption_2D(lam_On,lam_Off,pres,temp,sonde_index):
+#    """
+#    Obtain the absorption cross section of water vapor at the
+#    Online and Offline wavelengths provided for a 2D pressure and temeprature
+#    profile
+#    """    
+#    
+#    # get time indices where sonde reference changes
+#    ichange = np.nonzero(np.diff(sonde_index)>=1)[0]+1
+#    
+#    # find all the instances where the wavelength changes significanty
+#    dlam = 0.0001e-9  # allowed change in wavelength before reestimating the WV absorption
+#    no_on_change = False  # flag indicating no more changes are found (terminate loop)
+#    no_off_change = False
+#    ref_on = lam_On[0]
+#    ref_off = lam_Off[0]
+#    i_ref = 0
+#    i_on = np.array([0])
+#    i_off = np.array([0])
+#    i_lam_change = np.array([])
+#    while not no_on_change and not no_off_change:
+#        i_ref = np.nanmin([i_on[0]+i_ref+1,i_off[0]+i_ref+1])
+#        ref_on = lam_On[i_ref]
+#        ref_off = lam_Off[i_ref]
+#        i_lam_change = np.concatenate((i_lam_change,np.array([i_ref])))
+#        i_on = np.nonzero(np.abs(np.cumsum(lam_On[i_ref+1:]-ref_on))>dlam)[0]
+#        if len(i_on) == 0:
+#            i_on = np.nan
+#            no_on_change = True
+#            
+#        i_off = np.nonzero(np.abs(np.cumsum(lam_Off[i_ref+1:]-ref_off))>dlam)[0] 
+#        if len(i_off) == 0:
+#            i_off = np.nan
+#            no_off_change = True
+#            
+#            
+#        
+##    dnu = np.linspace(-7e9,7e9,400)  # array of spectrum relative to transmitted frequency
+##    inuL = np.argmin(np.abs(dnu))  # index to the laser frequency in the spectrum
+#    nuWV = np.linspace(lp.c/828.5e-9,lp.c/828e-9,500)
+#     
+#    nuOff = lp.c/lam_Off  # Offline laser frequency
+#    nuOn = lp.c/lam_On   # Online laser frequency     
+#    
+#    # cross sections on standard range grid
+#    sigOn = np.zeros(pres.profile.shape)
+#    sigOff = np.zeros(pres.profile.shape)
+#    
+#    # cross sections on grid for range differentiated profiles
+#    sigOn_dr = np.zeros((pres.profile.shape[0],pres.profile.shape[1]-1))
+#    sigOff_dr = np.zeros((pres.profile.shape[0],pres.profile.shape[1]-1))
+#    
+#    range_diff = pres.range_array[1:]-pres.mean_dR/2.0  # range grid for diffentiated signals
+#     
+#    for ai in range(pres.time.size):
+#        # sigWV is a 2D array with laser frequency on the 0 axis and range on the 1 axis. 
+#        sigWV = lp.WV_ExtinctionFromHITRAN(nuWV,temp.profile[ai,:],pres.profile[ai,:])    # get the WV spectrum from hitran data
+#        
+#        sigF = sp.interpolate.interp1d(nuWV,sigWV)  # set up frequency interpolation for the two DIAL wavelengths
+#        sigOn[ai,:] = sigF(nuOn[ai])
+#        sigOff[ai,:] = sigF(nuOff[ai])
+#        
+#        sigOn_dr[ai,:] = np.interp(range_diff,pres.range_array,sigOn[ai,:])
+#        sigOff_dr[ai,:] = np.interp(range_diff,pres.range_array,sigOff[ai,:])
+##        sigWVOn = sigF(dnu+nuOn[ai]).T  # get the absorption spectrum around the online wavelength
+##        sigWVOff = sigF(dnu+nuOff[ai]).T  # get the absorption spectrum around the offline wavelength
+#        
+##        sigOn[ai,:] = sigWVOn[inuL,:]
+##        sigOff[ai,:] = sigWVOff[inuL,:]
+#        
+#    return sigOn,sigOff,sigOn_dr,sigOff_dr,range_diff
     
 
 def Load_DLB_Data(basepath,FieldLabel,FileBase,MasterTime,Years,Months,Days,Hours,MCSbins,lidar='WV-DIAL',dt=2,Roffset=225.0,BinWidth=250e-9):

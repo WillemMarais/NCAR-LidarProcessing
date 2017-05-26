@@ -45,6 +45,10 @@
 		{"date": "7-Dec-2016, 0:0","value": 0.9e-6, "units":"seconds"}
 	],
 
+	"Location": [
+		{"date": "7-Dec-2016, 0:0","location": "Boulder","latitude": 40.037865, "longitude": -105.241002, "Project","none", "description": "Optics Lab","change type": "abrupt"}
+	],
+
 	"Comments": [
 		{"date": "21-Dec-2016, 0:0", "value": "Switched to 70/30 beam splitter"},
 		{"date": "20-Jan-2017, 0:0", "value": "Begin including uncertainty in geo calibrations"},
