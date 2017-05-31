@@ -1142,7 +1142,7 @@ def ncvar(ncID,varname):
     return var
     
     
-def plotprofiles(proflist,varplot=False,time=np.nan,scale='log'):
+def plotprofiles(proflist,varplot=False,time=np.nan,scale='log',fignum=np.nan,cindex=0):
     """
     plot profiles listed on an axis.
     proflist - a list of lidar profiles
@@ -1152,31 +1152,34 @@ def plotprofiles(proflist,varplot=False,time=np.nan,scale='log'):
     scale - plot on a 'log' or 'linear' axis.
     """
     colorlist = ['b','g','r','c','m','y','k']
-    plt.figure();
+    if np.isnan(fignum):
+        plt.figure()
+    else:
+        plt.figure(fignum)
     for ai in range(len(proflist)):
         p1 = proflist[ai].copy()
         if np.isnan(time):
             p1.time_integrate()
             if scale == 'log':
-                plt.semilogx(p1.profile.flatten(),p1.range_array.flatten(),colorlist[np.mod(ai,len(colorlist))]+'-',label=p1.label)
+                plt.semilogx(p1.profile.flatten(),p1.range_array.flatten(),colorlist[np.mod(ai+cindex,len(colorlist))]+'-',label=p1.label)
             else:
-                plt.plot(p1.profile.flatten(),p1.range_array.flatten(),colorlist[np.mod(ai,len(colorlist))]+'-',label=p1.label)
+                plt.plot(p1.profile.flatten(),p1.range_array.flatten(),colorlist[np.mod(ai+cindex,len(colorlist))]+'-',label=p1.label)
             if varplot:
                 if scale == 'log':
-                    plt.semilogx(np.sqrt(p1.profile_variance.flatten()),p1.range_array.flatten(),colorlist[np.mod(ai,len(colorlist))]+'--',label=p1.label+' std.')
+                    plt.semilogx(np.sqrt(p1.profile_variance.flatten()),p1.range_array.flatten(),colorlist[np.mod(ai+cindex,len(colorlist))]+'--',label=p1.label+' std.')
                 else:
-                    plt.plot(np.sqrt(p1.profile_variance.flatten()),p1.range_array.flatten(),colorlist[np.mod(ai,len(colorlist))]+'--',label=p1.label+' std.')
+                    plt.plot(np.sqrt(p1.profile_variance.flatten()),p1.range_array.flatten(),colorlist[np.mod(ai+cindex,len(colorlist))]+'--',label=p1.label+' std.')
         else:
             itime = np.argmin(np.abs(p1.time-time))
             if scale == 'log':
-                plt.semilogx(p1.profile[itime,:],p1.range_array.flatten(),colorlist[np.mod(ai,len(colorlist))]+'-',label=p1.label)
+                plt.semilogx(p1.profile[itime,:],p1.range_array.flatten(),colorlist[np.mod(ai+cindex,len(colorlist))]+'-',label=p1.label)
             else:
-                plt.plot(p1.profile[itime,:],p1.range_array.flatten(),colorlist[np.mod(ai,len(colorlist))]+'-',label=p1.label)
+                plt.plot(p1.profile[itime,:],p1.range_array.flatten(),colorlist[np.mod(ai+cindex,len(colorlist))]+'-',label=p1.label)
             if varplot:
                 if scale == 'log':
-                    plt.semilogx(np.sqrt(p1.profile_variance[itime,:]),p1.range_array.flatten(),colorlist[np.mod(ai,len(colorlist))]+'--',label=p1.label+' std.')
+                    plt.semilogx(np.sqrt(p1.profile_variance[itime,:]),p1.range_array.flatten(),colorlist[np.mod(ai+cindex,len(colorlist))]+'--',label=p1.label+' std.')
                 else:
-                    plt.plot(np.sqrt(p1.profile_variance[itime,:]),p1.range_array.flatten(),colorlist[np.mod(ai,len(colorlist))]+'--',label=p1.label+' std.')
+                    plt.plot(np.sqrt(p1.profile_variance[itime,:]),p1.range_array.flatten(),colorlist[np.mod(ai+cindex,len(colorlist))]+'--',label=p1.label+' std.')
         
         plt.grid(b=True);
         plt.legend()

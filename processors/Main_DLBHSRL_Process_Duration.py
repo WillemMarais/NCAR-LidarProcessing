@@ -24,7 +24,7 @@ import json
 USER INPUTS
 """
 
-Years,Months,Days,Hours = lp.generate_WVDIAL_day_list(2017,5,24,startHr=0,duration=24)
+Years,Months,Days,Hours = lp.generate_WVDIAL_day_list(2017,5,25,startHr=0,duration=24)
 
 plotAsDays = False
 getMLE_extinction = False
@@ -447,6 +447,15 @@ if run_MLE and use_geo:
         plt.xlabel('Time [UTC]')
         plt.xlim(HourLim)
 
+#plt.figure();  
+#plt.semilogy(Molecular.time/24/3600,Molecular.bg,label='Molecular Background')
+#plt.semilogy(CombHi.time/24/3600,CombHi.bg,label='Combined Background')
+#plt.semilogy((2+21.5/24.0)*np.ones(2),np.array([10,5e4]),'k--',label='Etalon Change');
+#plt.grid(b=True)
+#plt.ylabel('Background Counts')
+#plt.xlabel('Time [days]')
+#plt.title(Molecular.StartDate.strftime("%A %B %d, %Y"))
+#plt.legend()
 
 
 plt.show()

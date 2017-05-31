@@ -30,7 +30,8 @@ USER INPUTS
 """
 
 
-Years,Months,Days,Hours = lp.generate_WVDIAL_day_list(2017,5,24,startHr=0,duration=4)
+#Years,Months,Days,Hours = lp.generate_WVDIAL_day_list(2017,5,12,startHr=15,duration=20)
+Years,Months,Days,Hours = lp.generate_WVDIAL_day_list(2017,5,31,startHr=0,duration=24)
 
 
 plotAsDays = False
@@ -39,9 +40,11 @@ run_MLE = False
 runKlett = False
 
 save_as_nc = False
-save_figs = False
+save_figs = True
 
 run_geo_cal = False
+
+model_atm = True
 
 nctag = ''
 
@@ -52,7 +55,7 @@ use_mask = False
 SNRmask = 2.0  #SNR level used to decide what data points we keep in the final data product
 countLim = 2.0
 
-MaxAlt = 6e3 #12e3
+MaxAlt = 12e3 #12e3
 WV_Min_Alt = 350  # mask data below this altitude
 
 KlettAlt = 14e3  # altitude where Klett inversion starts
@@ -64,7 +67,8 @@ zres = 37.5  # bin range resolution in m (37.5 m typical base)
 
 # parameters for WV Channels smoothing
 tsmooth_wv = 5*60 # convolution kernal time (HW sigma) in seconds
-zsmooth_wv = 150  # convolution kernal range (HW sigma) in meters
+zsmooth_wv = 1 #150  # convolution kernal range (HW sigma) in meters
+zsmooth2_wv = np.sqrt(150**2+150**2)  # 75 # second range smoothing conducted on the actual WV retrieval
 
 
 """
@@ -139,7 +143,7 @@ Cam = 0.00 # Cross talk of aerosols into the molecular channel - 0.005 on Dec 21
 if save_as_nc or save_figs:
     ncfilename0 = lp.create_ncfilename('MSU_WVDIAL_DLBHSRL',Years,Months,Days,Hours,tag=nctag)
     ncfilename = save_data_path+ncfilename0
-    figfilename = save_fig_path + ncfilename0[:-3] + nctag
+    figfilename = save_fig_path + ncfilename0[:-3]
 
 if use_geo:
     geo_data = np.load(geo_file)
@@ -319,11 +323,13 @@ Mol2.gain_scale(MolGain)
 
 # Calculate backscatter ratio to build a cloud gradient mask in WV data
 BSRwv = Comb2.profile/Mol2.profile
+t1,t2,BSR_kernel = lp.get_conv_kernel(0.0,zsmooth2_wv/zres,norm=True)
+BSRwv = lp.conv2d(BSRwv,BSR_kernel,keep_mask=True)
 dBSRwv = np.diff(BSRwv,axis=1)/Mol2.mean_dR  # range derivative of BSR
 BSRwv_interp = 0.5*(BSRwv[:,:-1]+BSRwv[:,1:])  # differential range interpolated BSR
 
 BSR_mask = np.zeros(BSRwv_interp.shape)
-BSR_mask[np.nonzero(np.abs(dBSRwv/BSRwv_interp) > 0.005) ] = 1
+BSR_mask[np.nonzero(np.abs(dBSRwv/BSRwv_interp) > 0.002) ] = 1 # 0.005
 BSR_mask[:,np.nonzero(Comb2.range_array < 1e3)] = 0  # don't use the mask below 1 km
 
 
@@ -331,12 +337,14 @@ BSR_mask[:,np.nonzero(Comb2.range_array < 1e3)] = 0  # don't use the mask below 
 if Cam > 0:
     lp.FilterCrossTalkCorrect(Molecular,CombHi,Cam,smart=True)
 
-# add interpolated temperature and pressure
-beta_mol_sonde,sonde_time,sonde_index_prof,temp,pres,sonde_index = lp.get_beta_m_sonde(Molecular,Years,Months,Days,sonde_path,interp=True,returnTP=True)
-
+if model_atm: 
+    beta_mol_sonde,temp,pres = lp.get_beta_m_model(OffLine,surf_temp,surf_pres,returnTP=True)
+    pres.descript = 'Ideal Atmosphere Pressure in atm'
+else:
+    beta_mol_sonde,sonde_time,sonde_index_prof,temp,pres,sonde_index = lp.get_beta_m_sonde(OffLine,Years,Months,Days,sonde_path,interp=True,returnTP=True)
+    pres.descript = 'Sonde Measured Pressure in atm'
 # convert pressure from Pa to atm.
 pres.gain_scale(9.86923e-6)  
-pres.descript = 'Sonde Measured Pressure in atm'
 pres.profile_type = '$atm.$'
 
 
@@ -403,7 +411,7 @@ Tsonde = temp.profile[isonde,:]
 
 #nWV = wv.WaterVapor_2D(OnLine,OffLine,lambda_on,lambda_off,pres,temp)
 nWV = wv.WaterVapor_Simple(OnLine,OffLine,Psonde,Tsonde)
-nWV.conv(0.3,2.0)
+nWV.conv(0.0,zsmooth2_wv/zres)
 nWV.mask_range('<=',WV_Min_Alt)
 
 if use_mask:
@@ -531,8 +539,8 @@ else:
 #plt.xlabel('Time [UTC]')
 #plt.xlim(HourLim)
 
-#lp.pcolor_profiles([nWV,aer_beta_dlb],climits=[[0,12],[-8.0,-4.0]],scale=['linear','log'],plotAsDays=plotAsDays)  # Standard
-lp.pcolor_profiles([nWV,aer_beta_dlb],climits=[[0,12],[-7.4,-6.0]],scale=['linear','log'],plotAsDays=plotAsDays)  # Aerosol Enhanced
+lp.pcolor_profiles([nWV,aer_beta_dlb],climits=[[0,12],[-8.0,-4.0]],scale=['linear','log'],plotAsDays=plotAsDays)  # Standard
+#lp.pcolor_profiles([nWV,aer_beta_dlb],climits=[[2,10],[-7.4,-5.5]],scale=['linear','log'],plotAsDays=plotAsDays)  # Aerosol Enhanced
 #lp.pcolor_profiles([nWV,aer_beta_dlb],climits=[[0,12],[-8.0,-4.0]],scale=['linear','log'],plotAsDays=plotAsDays)  # Standard
 #lp.pcolor_profiles([nWV,aer_beta_dlb],climits=[[0,12],[-7.4,-6.0]],scale=['linear','log'],plotAsDays=plotAsDays,ylimits=[0,4],tlimits=[10,17.75])
 if save_figs:
@@ -766,9 +774,11 @@ RD Correction
 #
 ##nWVprof = nWV.profile[200,1:]*lp.N_A/lp.mH2O
 #nWVprof = (-0.5*alpha_wv[150,:])/dsig[1:]
+#nWVprof = np.convolve(nWVprof,np.ones(6),'same')/6.0
+#nWVprof0 = nWVprof.copy()
 #plt.figure();
 #plt.plot(nWVprof)
-#for ai in range(1000):
+#for ai in range(100):
 #    Tmol1on = np.sum(np.exp(-2*np.cumsum(sigWV0on[1:,:]*nWVprof[:,np.newaxis],axis=0)*Mol2.mean_dR)*MolSpec[:,1:].T,axis=1)
 #    Tmol2on = np.sum(Tonline[np.newaxis,:]*np.exp(-2*np.cumsum(sigWV0on[1:,:]*nWVprof[:,np.newaxis],axis=0)*Mol2.mean_dR)*MolSpec[:,1:].T,axis=1)
 #    Tmol0on = Tonline[inu0]*np.exp(-2*np.cumsum(sigWV0on[1:,inu0]*nWVprof,axis=0)*Mol2.mean_dR)
@@ -783,12 +793,14 @@ RD Correction
 #    WVcorr_eta = np.concatenate((np.array([0]),0.5*np.diff(np.log((BSRwv_int[150,:]+(eta_on-1.0))/(BSRwv_int[150,:]+(eta_off-1.0))))/Mol2.mean_dR))
 ##    WVcorr_eta = 0.5*np.diff(np.log((BSRwv_int[150,:]+(eta_on-1.0))/(BSRwv_int[150,:]+(eta_off-1.0))))
 #    
+#    WVcorr_eta =  np.convolve(WVcorr_eta,np.ones(6),'same')/6.0   
+#    
 ##    adj_area = np.nonzero(np.logical_and(np.abs(dBSRwv[150,:]/BSRwv_int[150,:])> 0.004,Mol2.range_array[1:]>1e3))[0]
-##    adj_area = np.nonzero(np.logical_and(BSRwv_int[150,:]> 2.0,Mol2.range_array[1:]>1e3))[0]
+#    adj_area = np.nonzero(np.logical_and(BSRwv_int[150,:]> 2.0,Mol2.range_array[1:]>1e3))[0]
 ##    adj_area = np.nonzero(np.abs(dBSRwv[150,:]/BSRwv_int[150,:])> 0.004)[0] 
-#    adj_area = np.nonzero(Mol2.range_array[1:]>1e3)[0]
+##    adj_area = np.nonzero(Mol2.range_array[1:]>1e3)[0]
 ##    alpha_wv[150,adj_area] = alpha_wv[150,adj_area]-2*WVcorr_eta[adj_area-1]
-#    nWVprof[adj_area] = nWVprof[adj_area]-0.1*WVcorr_eta[adj_area-2]/dsig[adj_area]
+#    nWVprof[adj_area] = nWVprof0[adj_area]-1.0*WVcorr_eta[adj_area-2]/dsig[adj_area]
 ##    nWVprof = nWVprof+WVcorr_eta/dsig[1:]
 ##    nWVprof = (-0.5*alpha_wv[150,:]+WVcorr_eta)/dsig[1:]
 #
