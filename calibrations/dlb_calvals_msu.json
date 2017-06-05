@@ -27,6 +27,8 @@
 		{"date": "14-Apr-2017, 0:0","value": 1.33, "diff_geo": "none", "change type": "abrupt", "notes": ""},
 		{"date": "5-May-2017, 0:0","value": 3.17, "diff_geo": "none", "change type": "abrupt", "notes": ""},
 		{"date": "24-May-2017, 0:0","value": 3.287, "diff_geo": "none", "change type": "gradual", "notes": ""},
+		{"date": "29-May-2017, 0:0","value": 3.7236, "diff_geo": "none", "change type": "abrupt", "notes": ""},
+		{"date": "30-May-2017, 17:10","value": 4.487, "diff_geo": "none", "change type": "abrupt", "notes": ""},
 		{"date": "31-May-2017, 17:10","value": 2.106899, "diff_geo": "none", "change type": "abrupt", "notes": ""}
 	],
 
