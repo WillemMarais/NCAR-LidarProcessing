@@ -505,7 +505,7 @@ class LidarProfile():
         # update - boolean to update the profile or return the profile
         #   True - don't return the profile, update the profile with the new range integrated one
         #   False - return the range integrated profile and don't update this one.
-        print ('range_resample() initiated for %s but no processing code has been written for this.' %self.label)
+#        print ('range_resample() initiated for %s but no processing code has been written for this.' %self.label)
 #        if delta_R <= 0:
 #            new_range_profile = np.nansum(self.profile,axis=1)
 #            new_range_variance = np.nansum(self.profile_variance,axis=1)
@@ -1217,8 +1217,7 @@ def pcolor_profiles(proflist,ylimits=[0,np.nan],tlimits=[np.nan,np.nan],climits=
     # if the color scale limits is not provided or not enough color scale 
     # entries are provided, set the color limits to auto (nan = auto)
     if len(climits) < len(proflist):
-        climits.extend([[np.nan,np.nan]]*(len(proflist)-len(scale)))
-    
+        climits.extend([[np.nan,np.nan]]*(len(proflist)-len(climits)))
     
     tmin = 1e9
     tmax = 0
