@@ -2067,7 +2067,7 @@ def WV_ExtinctionFromHITRAN(nu,TempProf,PresProf,filename='',freqnorm=False,nuLi
     
     if not filename:
 #        print('Using Default HITRAN file')
-        filename = '/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/WV_HITRAN2012_815_841.txt';
+        filename = '/h/eol/mhayman/PythonScripts/NCAR-LidarProcessing/libraries/WV_HITRAN2012_815_841.txt';
     
     Mh2o = (mH2O*1e-3)/N_A; # mass of a single water molecule, kg/mol
     
