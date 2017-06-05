@@ -26,7 +26,8 @@
 		{"date": "21-Dec-2016, 18:30","value": 1.2821, "diff_geo": "none", "change type": "abrupt", "notes": ""},
 		{"date": "14-Apr-2017, 0:0","value": 1.33, "diff_geo": "none", "change type": "abrupt", "notes": ""},
 		{"date": "5-May-2017, 0:0","value": 3.17, "diff_geo": "none", "change type": "abrupt", "notes": ""},
-		{"date": "24-May-2017, 0:0","value": 3.287, "diff_geo": "none", "change type": "gradual", "notes": ""}
+		{"date": "24-May-2017, 0:0","value": 3.287, "diff_geo": "none", "change type": "gradual", "notes": ""},
+		{"date": "31-May-2017, 17:10","value": 2.106899, "diff_geo": "none", "change type": "abrupt", "notes": ""}
 	],
 
 	"Geo File Record": [
