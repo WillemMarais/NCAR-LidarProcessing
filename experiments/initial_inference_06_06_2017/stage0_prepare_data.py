@@ -17,10 +17,13 @@ def get_geoO_delR_120m ():
     geoO_arr = 1 / data_dct ['geo_prof'] [:, 1:2]
     geoO_arr /= geoO_arr.max ()
     
-    # Bin the overlap
-    binned_geoO_arr = bin_image (geoO_arr, 4, 1) / 4.0
+    geo_range_arr = data_dct ['geo_prof'] [:, 0:1]
     
-    return binned_geoO_arr
+    # Bin the overlap and the corresponding range array
+    binned_geoO_arr = bin_image (geoO_arr, 4, 1) / 4.0
+    binned_geo_range_arr = bin_image (geo_range_arr, 4, 1) / 4.0
+    
+    return binned_geo_range_arr, binned_geoO_arr
 
 def get_data_delR_120m_delT_120s (recompute_bl = False):
     """Return photon counting data with a range resolution of 120m, and time resolution of 120s. The dataset that is 
@@ -109,6 +112,7 @@ def get_data_delR_120m_delT_120s (recompute_bl = False):
     on_cnts_arr = bin_image (on_cnts_arr [:, :new_K], 4, nr_accum_prfl_int)
     off_cnts_arr = bin_image (off_cnts_arr [:, :new_K], 4, nr_accum_prfl_int)
     # Get the range axis
+    pre_bin_range_arr = OnLine.range_array [np.newaxis].T
     range_arr = bin_image (OnLine.range_array [np.newaxis].T, 4, 1) / 4.0
     
     # Readjust the nr of profiles and bins
@@ -172,6 +176,7 @@ def get_data_delR_120m_delT_120s (recompute_bl = False):
     on_cnts_arr = on_cnts_arr [1:, :]
     off_cnts_arr = off_cnts_arr [1:, :]    
     range_arr = range_arr [1:, :]
+    pre_bin_range_arr = pre_bin_range_arr [1:, :]
     
     # Reduce the resolution of the difference absorption coefficient
     binned_dsig_arr = bin_image (dsig.T, 4, 1) / 4.0
@@ -181,11 +186,12 @@ def get_data_delR_120m_delT_120s (recompute_bl = False):
     binned_dsig_arr = binned_dsig_arr [:, 28:][:, :-28]
     
     data_dct = dict (range_arr = range_arr,
+        pre_bin_range_arr = pre_bin_range_arr,
         on_cnts_arr = on_cnts_arr,
         off_cnts_arr = off_cnts_arr,
         binned_dsig_arr = binned_dsig_arr)
     
-    data_fileP_str = os.path.join (os.path.dirname (__file__), 'data_delR_120m_delT_120s.p')
+    data_fileP_str = os.path.join (os.path.dirname (__file__),  'data', 'data_delR_120m_delT_120s.p')
     with open (data_fileP_str, 'wb') as file_obj:
         pickle.dump (data_dct, file_obj, protocol = 2)
     

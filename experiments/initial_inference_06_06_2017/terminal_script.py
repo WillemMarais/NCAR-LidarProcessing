@@ -43,14 +43,14 @@ import inference
 # Stage 0 - prepare data
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Get data
-stage0_data_dct = stage0_prepare_data.get_data_delR_120m_delT_120s ()
+stage0_data_dct = stage0_prepare_data.get_data_delR_120m_delT_120s (recompute_bl = False)
 # Select data that corresponds to night time
 stage0_data_dct ['on_cnts_arr'] = stage0_data_dct ['on_cnts_arr'][:, 78:300]
 stage0_data_dct ['off_cnts_arr'] = stage0_data_dct ['off_cnts_arr'][:, 78:300]
 stage0_data_dct ['binned_dsig_arr'] = stage0_data_dct ['binned_dsig_arr'][:, 78:300]
 
 # Get geometric overlap
-geoO_arr = stage0_prepare_data.get_geoO_delR_120m ()
+geo_range_arr, geoO_arr = stage0_prepare_data.get_geoO_delR_120m ()
 
 # Denoise the background
 on_y_arr = stage0_data_dct ['on_cnts_arr']
