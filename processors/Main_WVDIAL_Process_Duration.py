@@ -22,6 +22,7 @@ import FourierOpticsLib as FO
 
 import datetime
 import json
+import os
 
 #import glob
 
@@ -81,11 +82,12 @@ basepath = '/scr/eldora1/h2o_data/'
 save_data_path = '/h/eol/mhayman/DIAL/Processed_Data/'
 save_fig_path = '/h/eol/mhayman/DIAL/Processed_Data/Plots/'
 
-# path to sonde data
+# path to sonde data (if used)
 sonde_path = '/scr/eldora1/HSRL_data/'
 
 # path to calibration files
-cal_path = '/h/eol/mhayman/PythonScripts/NCAR-LidarProcessing/calibrations/'
+#cal_path = '/h/eol/mhayman/PythonScripts/NCAR-LidarProcessing/calibrations/'
+cal_path = os.path.abspath(__file__+'/../../calibrations/')
 #cal_file = cal_path+'dlb_calvals_msu.json'
 cal_file = cal_path+'dlb_calvals_ncar0.json'
 
