@@ -6,9 +6,9 @@ import numpy as np
 import cPickle as pickle
 import matplotlib.pyplot as plt
 
-# sys.path.pop (5)
-# sys.path.pop (-1)
-sys.path.pop (0)
+sys.path.pop (5)
+sys.path.pop (-1)
+# sys.path.pop (0)
 
 # Load Matt Hayman's Python modules
 mod_path_str = os.path.join (os.environ ['HOME'], 'ProjectsSSEC/GitLab/NCAR-LidarProcessing/libraries')
