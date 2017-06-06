@@ -355,7 +355,8 @@ def WaterVapor_2D(OnLine,OffLine,lam_On,lam_Off,pres,temp):
 #    return sigOn,sigOff,sigOn_dr,sigOff_dr,range_diff
     
 
-def Load_DLB_Data(basepath,FieldLabel,FileBase,MasterTime,Years,Months,Days,Hours,MCSbins,lidar='WV-DIAL',dt=2,Roffset=225.0,BinWidth=250e-9):
+def Load_DLB_Data(basepath,FieldLabel,FileBase,MasterTime,Years,Months,Days,Hours,MCSbins,lidar='WV-DIAL',dt=2,
+    Roffset=225.0,BinWidth=250e-9):
     """
     reads in data from WV-DIAL custom format binaries.
     basepath - path to data files e.g. basepath = '/scr/eldora1/MSU_h2o_data/'
@@ -455,7 +456,6 @@ def Load_DLB_Data(basepath,FieldLabel,FileBase,MasterTime,Years,Months,Days,Hour
             deltat_0 = deltat_0_date.days
             
         FilePath0 = basepath + YearStr + '/' + YearStr[-2:] + MonthStr + DayStr + FieldLabel
-        
         SubDirs = glob.glob(FilePath0+'/*/')
         
         for idir in range(len(SubDirs)):
@@ -557,3 +557,4 @@ def Load_DLB_Data(basepath,FieldLabel,FileBase,MasterTime,Years,Months,Days,Hour
     HourLim = np.array([Hours[0,0],Hours[1,-1]+deltat_0*24])
     
     return profiles,[lambda_lidar,surf_temp,surf_pres,surf_humid],HourLim
+    

@@ -4,6 +4,7 @@ Created on Tue Apr  5 10:45:55 2016
 
 @author: mhayman
 """
+import os
 import numpy as np
 import scipy.special.lambertw
 from scipy.special import wofz
@@ -2066,7 +2067,8 @@ def WV_ExtinctionFromHITRAN(nu,TempProf,PresProf,filename='',freqnorm=False,nuLi
     
     if not filename:
 #        print('Using Default HITRAN file')
-        filename = '/h/eol/mhayman/PythonScripts/NCAR-LidarProcessing/libraries/WV_HITRAN2012_815_841.txt';
+        # filename = '/h/eol/mhayman/PythonScripts/NCAR-LidarProcessing/libraries/WV_HITRAN2012_815_841.txt';
+        filename = os.path.join (os.path.dirname (__file__), 'WV_HITRAN2012_815_841.txt')
     
     Mh2o = (mH2O*1e-3)/N_A; # mass of a single water molecule, kg/mol
     

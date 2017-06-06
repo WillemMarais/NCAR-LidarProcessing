@@ -1,0 +1,16 @@
+# Mac files
+.DS_Store
+._.DS_Store
+# LaTeX files
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.lb
+# Hidden files create by Textmate
+._*
+# Library files
+*.so
+*.pyc
