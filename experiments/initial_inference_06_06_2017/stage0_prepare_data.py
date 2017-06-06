@@ -26,7 +26,7 @@ def get_data_delR_120m_delT_120s (recompute_bl = False):
     """Return photon counting data with a range resolution of 120m, and time resolution of 120s. The dataset that is 
     used is from 2017-05-24, from hour 0 (UTC?) to hour 18."""
     
-    data_fileP_str = os.path.join (os.path.dirname (__file__), 'data_delR_120m_delT_120s.p')
+    data_fileP_str = os.path.join (os.path.dirname (__file__), 'data', 'data_delR_120m_delT_120s.p')
     if (os.path.exists (data_fileP_str) is True) and (recompute_bl is False):
         data_dct = pickle.load (open (data_fileP_str, 'rb'))
         
