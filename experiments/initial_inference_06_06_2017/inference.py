@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.special import gammaln
 import ptv.hsrl.denoise as denoise
 from ptv.estimators.poissonnoise import poissonmodel0, poissonmodelLogLinearTwoChannel, poissonmodel5
 
@@ -44,13 +45,13 @@ def get_denoiser_atten_backscatter_chi (stage0_data_dct, sparsa_cfg_chi_obj):
     # Create the Poisson thin object
     poisson_thn_obj = denoise.poissonthin (off_y_arr, p_trn_flt = 0.5, p_vld_flt = 0.5)
     # Create lower and upper bounds
-    lb_arr = np.zeros (shape = off_y_arr.shape) - 7
-    ub_arr = np.zeros (shape = off_y_arr.shape) + 7
+    lb_arr = np.zeros (shape = off_y_arr.shape) - np.inf
+    ub_arr = np.zeros (shape = off_y_arr.shape) + np.inf
     # Create the estimator object
     est_obj = poissonmodel0 (poisson_thn_obj, b_arr = off_bg_arr, A_arr = A_arr, log_model_bl = True, 
         lb_arr = lb_arr, ub_arr = ub_arr, sparsaconf_obj = sparsa_cfg_chi_obj, penalty_str = penalty_str)
     # Create the denoiser object
-    denoise_cnf_obj = denoise.denoiseconf (log10_reg_lst = [-2, 2], pen_type_str = penalty_str, verbose_bl = True)
+    denoise_cnf_obj = denoise.denoiseconf (log10_reg_lst = [-1.5, 1.5], pen_type_str = penalty_str, verbose_bl = True)
     denoiser_obj = denoise.denoisepoisson (est_obj, denoise_cnf_obj)
     
     denoiser_obj.denoise ()
@@ -66,6 +67,10 @@ def estimate_water_vapor_varphi (stage0_data_dct, prev_hat_chi_arr, tau_chi_flt,
         p_trn_flt = 0.5, p_vld_flt = 0.5)
     off_poisson_thn_obj = denoise.poissonthin (stage0_data_dct ['off_cnts_arr'], 
         p_trn_flt = 0.5, p_vld_flt = 0.5)
+    
+    # Get calibration parameters
+    range_arr = stage0_data_dct ['range_arr']
+    geoO_arr = stage0_data_dct ['geoO_arr']
     
     # Get the background counts
     on_bg_arr = stage0_data_dct ['on_bg_arr']
@@ -104,12 +109,13 @@ def estimate_water_vapor_varphi (stage0_data_dct, prev_hat_chi_arr, tau_chi_flt,
         print ('[{:d}/{:d}] varphi_tau = {:.2e}; estimating water vapor'.format (j_idx, 
             max_iter_int, tau_varphi_flt))
         # Create water vapor estimator
+        A_arr = range_arr * geoO_arr * np.exp (prev_hat_chi_arr)
         est_varphi_obj = poissonmodel5 (on_poisson_thn_obj, off_poisson_thn_obj, 
-            on_sigma_arr, off_sigma_arr, on_bg_arr, np.exp (prev_hat_chi_arr), off_bg_arr, np.exp (prev_hat_chi_arr), 
+            on_sigma_arr, off_sigma_arr, on_bg_arr, A_arr, off_bg_arr, A_arr, 
             sparsa_cfg_varphi_obj, varphi_lb_arr, varphi_ub_arr, delta_R_flt = del_R_flt)
         
         # Do the estimation
-        hat_varphi_arr, _, status_msg_str = est_varphi_obj.estimate (prev_hat_varphi_arr, tau_varphi_flt)
+        hat_varphi_arr, _, status_msg_str, varphi_sparsa_obj = est_varphi_obj.estimate (prev_hat_varphi_arr, tau_varphi_flt)
         print ('\t{:s}'.format (status_msg_str)) 
         
         # Record the objective function; first get the forward model and then the subproblem
@@ -129,9 +135,9 @@ def estimate_water_vapor_varphi (stage0_data_dct, prev_hat_chi_arr, tau_chi_flt,
         print ('[{:d}/{:d}] chi_tau = {:.2e}; estimating attenuated backscatter'.format (j_idx, 
             max_iter_int, tau_chi_flt))
         # Create attenuated backscatter estimator
-        on_A_arr = np.exp (-2 * del_R_flt * np.cumsum (on_sigma_arr * hat_varphi_arr, axis = 0))
+        on_A_arr = range_arr * geoO_arr * np.exp (-2 * del_R_flt * np.cumsum (on_sigma_arr * hat_varphi_arr, axis=0))
         on_B_arr = np.ones_like (on_A_arr)
-        off_A_arr = np.exp (-2 * del_R_flt * np.cumsum (off_sigma_arr * hat_varphi_arr, axis = 0))
+        off_A_arr = range_arr * geoO_arr * np.exp (-2 * del_R_flt * np.cumsum (off_sigma_arr * hat_varphi_arr, axis=0))
         off_B_arr = np.ones_like (off_A_arr)
         
         est_chi_obj = poissonmodelLogLinearTwoChannel (on_poisson_thn_obj, off_poisson_thn_obj, 
@@ -140,7 +146,7 @@ def estimate_water_vapor_varphi (stage0_data_dct, prev_hat_chi_arr, tau_chi_flt,
             sparsa_cfg_varphi_obj, chi_lb_arr, chi_ub_arr)
         
         # Do the estimation
-        hat_chi_arr, _, status_msg_str = est_chi_obj.estimate (prev_hat_chi_arr, tau_chi_flt)
+        hat_chi_arr, _, status_msg_str, chi_sparsa_obj = est_chi_obj.estimate (prev_hat_chi_arr, tau_chi_flt)
         print ('\t{:s}'.format (status_msg_str))
         
         # Record the objective function; first get the forward model and then the subproblem

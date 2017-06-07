@@ -43,6 +43,8 @@ import ptv.hsrl.denoise as denoise
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Stage 0 - prepare data
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+print ('(INFO) Stage 0 - Preparing data')
+
 # Get data
 stage0_data_dct = stage0_prepare_data.get_data_delR_120m_delT_120s (recompute_bl = False, recompute_sig_bl = False)
 # Select data that corresponds to night time
@@ -72,22 +74,43 @@ stage0_data_dct ['geoO_arr'] = geoO_arr
 # subs_on_bg_arr = on_bg_arr.copy () [:, 0:1]
 # subs_off_bg_arr = on_bg_arr.copy () [:, 0:1]
 
-stage0_reduced_data_dct = stage0_data_dct
-stage0_reduced_data_dct ['on_cnts_arr'] = stage0_data_dct ['on_cnts_arr'].copy () [:, 0:12]
-stage0_reduced_data_dct ['off_cnts_arr'] = stage0_data_dct ['off_cnts_arr'].copy () [:, 0:12]
-stage0_reduced_data_dct ['on_bg_arr'] = stage0_data_dct ['on_bg_arr'].copy () [:, 0:12]
-stage0_reduced_data_dct ['off_bg_arr'] = stage0_data_dct ['off_bg_arr'].copy () [:, 0:12]
+stage0_reduced_data_dct = dict ()
+stage0_reduced_data_dct ['range_arr'] = stage0_data_dct ['range_arr'][:80, :]
+stage0_reduced_data_dct ['geoO_arr'] = stage0_data_dct ['geoO_arr'][:80, :]
+stage0_reduced_data_dct ['pre_bin_range_arr'] = stage0_data_dct ['pre_bin_range_arr']
+stage0_reduced_data_dct ['on_cnts_arr'] = stage0_data_dct ['on_cnts_arr'].copy () [:80, 0:12]
+stage0_reduced_data_dct ['off_cnts_arr'] = stage0_data_dct ['off_cnts_arr'].copy () [:80, 0:12]
+stage0_reduced_data_dct ['on_bg_arr'] = stage0_data_dct ['on_bg_arr'].copy () [:80, 0:12]
+stage0_reduced_data_dct ['off_bg_arr'] = stage0_data_dct ['off_bg_arr'].copy () [:80, 0:12]
+stage0_reduced_data_dct ['binned_dsig_arr'] = stage0_data_dct ['binned_dsig_arr'].copy () [:80, 0:12]
+stage0_reduced_data_dct ['binned_on_sig_arr'] = stage0_data_dct ['binned_on_sig_arr'].copy () [:80, 0:12]
+stage0_reduced_data_dct ['binned_off_sig_arr'] = stage0_data_dct ['binned_off_sig_arr'].copy () [:80, 0:12]
+stage0_reduced_data_dct ['scale_to_H2O_den_flt'] = stage0_data_dct ['scale_to_H2O_den_flt']
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Stage 1 - get intial estimate of the attenuated backscatter cross-section, which I call \chi.
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-sparsa_cfg_obj = denoise.sparsaconf ()
+print ('(INFO) Stage 1 - Get initial estimate of the attenuated backscatter cross-section')
+
+sparsa_cfg_obj = denoise.sparsaconf (eps_flt = 1e-6)
 hat_chi_arr, chi_denoiser_obj = inference.get_denoiser_atten_backscatter_chi (stage0_reduced_data_dct, sparsa_cfg_obj)
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Stage 2 - now estimate both the water vapor and the attenuated backscatter cross-section. The water vapor is 
 # denoted by \varphi, and the \chi denotes the attenuated backscatter cross-section.
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+print ('(INFO) Stage 2 - Estimating water vapor and attenuated backscatter cross-section')
+
 # Create SpaRSA configuration objects
-sparsa_cfg_varphi_obj = denoise.sparsaconf (max_iter_int = 1e2, M_int = 1)
-sparsa_cfg_chi_obj = denoise.sparsaconf (max_iter_int = 1e2, M_int = 1)
+prev_hat_chi_arr = hat_chi_arr.copy ()
+max_iter_int = 100
+epsilon_flt = 1e-5
+verbose_int = 1
+tau_varphi_flt = 10
+tau_chi_flt = 10
+sparsa_cfg_chi_obj = denoise.sparsaconf (max_iter_int = 1e2, M_int = 0)
+sparsa_cfg_varphi_obj = denoise.sparsaconf (max_iter_int = 1e2, M_int = 0)
+
+hat_varphi_arr, hat_chi_arr, j_idx, objF_arr, re_step_avg_arr, re_step_varphi_arr, re_step_chi_arr = \
+    inference.estimate_water_vapor_varphi (stage0_reduced_data_dct, prev_hat_chi_arr, tau_chi_flt, tau_varphi_flt, 
+        max_iter_int, epsilon_flt, verbose_int, sparsa_cfg_chi_obj, sparsa_cfg_varphi_obj)
