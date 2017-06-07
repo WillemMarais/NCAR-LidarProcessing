@@ -112,7 +112,7 @@ def estimate_water_vapor_varphi (stage0_data_dct, prev_hat_chi_arr, tau_chi_flt,
     
     # This is used in both the forwards models for the estimating chi and varphi
     chi_A_arr = geoO_arr / (range_arr**2)
-    chi_A_arr = A_arr / A_arr.max () * 1000
+    chi_A_arr = chi_A_arr / chi_A_arr.max () * 1000
     
     for j_idx in range (max_iter_int):
         # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
