@@ -20,7 +20,7 @@ def denoise_background (y_arr, bin_start_idx, bin_end_idx):
     
     return denoiser_obj.getdenoised ().T / float (N)
 
-def get_denoiser_atten_backscatter_chi (stage0_data_dct, sparsa_cfg_chi_obj):
+def get_denoiser_atten_backscatter_chi (stage0_data_dct, sparsa_cfg_chi_obj, kwargs_denoiseconf_dct = None):
     """
     Parameters
     ----------
@@ -40,8 +40,16 @@ def get_denoiser_atten_backscatter_chi (stage0_data_dct, sparsa_cfg_chi_obj):
     else:
         penalty_str = 'TV'
     
-    # Create system matrix
+    if kwargs_denoiseconf_dct is None:
+        kwargs_denoiseconf_dct = dict (
+            log10_reg_lst = [-1.5, 1.5],
+            pen_type_str = pen_type_str,
+            verbose_bl = True)
+    
+    # Create system matrix and scale it so that \chi is not too large or too small (which could cause numerical
+    # computational problems).
     A_arr = geoO_arr / (range_arr**2)
+    A_arr = A_arr / A_arr.max () * off_y_arr.max ()
     # Create the Poisson thin object
     poisson_thn_obj = denoise.poissonthin (off_y_arr, p_trn_flt = 0.5, p_vld_flt = 0.5)
     # Create lower and upper bounds
@@ -51,7 +59,7 @@ def get_denoiser_atten_backscatter_chi (stage0_data_dct, sparsa_cfg_chi_obj):
     est_obj = poissonmodel0 (poisson_thn_obj, b_arr = off_bg_arr, A_arr = A_arr, log_model_bl = True, 
         lb_arr = lb_arr, ub_arr = ub_arr, sparsaconf_obj = sparsa_cfg_chi_obj, penalty_str = penalty_str)
     # Create the denoiser object
-    denoise_cnf_obj = denoise.denoiseconf (log10_reg_lst = [-1.5, 1.5], pen_type_str = penalty_str, verbose_bl = True)
+    denoise_cnf_obj = denoise.denoiseconf (**kwargs_denoiseconf_dct)
     denoiser_obj = denoise.denoisepoisson (est_obj, denoise_cnf_obj)
     
     denoiser_obj.denoise ()
