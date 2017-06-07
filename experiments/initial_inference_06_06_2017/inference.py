@@ -49,6 +49,7 @@ def get_denoiser_atten_backscatter_chi (stage0_data_dct, sparsa_cfg_chi_obj, kwa
     # Create system matrix and scale it so that \chi is not too large or too small (which could cause numerical
     # computational problems).
     A_arr = geoO_arr / (range_arr**2)
+    # TODO: Find a better way to scale A_arr. Maybe use the time resolution.
     A_arr = A_arr / A_arr.max () * 1000
     # Create the Poisson thin object
     poisson_thn_obj = denoise.poissonthin (off_y_arr, p_trn_flt = 0.5, p_vld_flt = 0.5)
@@ -84,8 +85,10 @@ def estimate_water_vapor_varphi (stage0_data_dct, prev_hat_chi_arr, tau_chi_flt,
     on_bg_arr = stage0_data_dct ['on_bg_arr']
     off_bg_arr = stage0_data_dct ['off_bg_arr']
     
-    # Record the objective function in the following array
+    # Record the objective function in the following array, which is computed from the training data
     objF_arr = np.zeros (shape = (max_iter_int * 2, ))
+    # Record the validation errors
+    vld_err_arr = np.zeros (shape = (max_iter_int * 2, ))
     
     # Record the relative step size in the following array
     re_step_chi_arr = np.zeros (shape = (max_iter_int, ))
@@ -112,6 +115,7 @@ def estimate_water_vapor_varphi (stage0_data_dct, prev_hat_chi_arr, tau_chi_flt,
     
     # This is used in both the forwards models for the estimating chi and varphi
     chi_A_arr = geoO_arr / (range_arr**2)
+    # TODO: Find a better way to scale A_arr. Maybe use the time resolution.
     chi_A_arr = chi_A_arr / chi_A_arr.max () * 1000
     
     for j_idx in range (max_iter_int):
@@ -131,11 +135,14 @@ def estimate_water_vapor_varphi (stage0_data_dct, prev_hat_chi_arr, tau_chi_flt,
         print ('\t{:s}'.format (status_msg_str)) 
         
         # Record the objective function; first get the forward model and then the subproblem
-        fw_model_obj, _, _ = est_varphi_obj.getphymodel ()
+        trn_fw_model_obj, vld_fw_model_obj, _ = est_varphi_obj.getphymodel ()
         subp_obj = est_varphi_obj.getsubproblem ()
-        objF_arr [j_idx * 2] = fw_model_obj.lossfunction (hat_varphi_arr) \
+        objF_arr [j_idx * 2] = trn_fw_model_obj.lossfunction (hat_varphi_arr) \
             + tau_chi_flt * subp_obj.penalty (prev_hat_chi_arr) \
             + tau_varphi_flt * subp_obj.penalty (hat_varphi_arr)
+        
+        # Record the validation error
+        vld_err_arr [j_idx * 2] = vld_fw_model_obj.lossfunction (hat_varphi_arr)
         
         # Record relative step size for varphi
         re_step_varphi_arr [j_idx] = np.linalg.norm (prev_hat_varphi_arr - hat_varphi_arr, 'fro') \
@@ -162,11 +169,14 @@ def estimate_water_vapor_varphi (stage0_data_dct, prev_hat_chi_arr, tau_chi_flt,
         print ('\t{:s}'.format (status_msg_str))
         
         # Record the objective function; first get the forward model and then the subproblem
-        fw_model_obj, _, _ = est_chi_obj.getphymodel ()
+        trn_fw_model_obj, vld_fw_model_obj, _ = est_chi_obj.getphymodel ()
         subp_obj = est_chi_obj.getsubproblem ()
-        objF_arr [j_idx * 2 + 1] = fw_model_obj.lossfunction (hat_chi_arr) \
+        objF_arr [j_idx * 2 + 1] = trn_fw_model_obj.lossfunction (hat_chi_arr) \
             + tau_chi_flt * subp_obj.penalty (hat_chi_arr) \
             + tau_varphi_flt * subp_obj.penalty (hat_varphi_arr)
+        
+        # Record the validation error
+        vld_err_arr [j_idx * 2 + 1] = vld_fw_model_obj.lossfunction (hat_chi_arr)
         
         # Record relative step size for chi
         re_step_chi_arr [j_idx] = np.linalg.norm (prev_hat_chi_arr - hat_chi_arr, 'fro') \
@@ -186,5 +196,9 @@ def estimate_water_vapor_varphi (stage0_data_dct, prev_hat_chi_arr, tau_chi_flt,
         prev_hat_chi_arr = hat_chi_arr.copy ()
         prev_hat_varphi_arr = hat_varphi_arr.copy ()
     
-    return hat_varphi_arr, hat_chi_arr, j_idx, objF_arr, re_step_avg_arr, re_step_varphi_arr, re_step_chi_arr
+    # Offset the validation error array so that it is non-negative
+    vld_err_arr += np.sum (gammaln (on_poisson_thn_obj._y_vld_arr + 1) + gammaln (off_poisson_thn_obj._y_vld_arr + 1))
+    
+    return (hat_varphi_arr, hat_chi_arr, j_idx, objF_arr, vld_err_arr, 
+        re_step_avg_arr, re_step_varphi_arr, re_step_chi_arr)
     
