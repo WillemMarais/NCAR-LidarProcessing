@@ -69,7 +69,7 @@ def get_denoiser_atten_backscatter_chi (stage0_data_dct, sparsa_cfg_chi_obj, kwa
     return hat_chi_arr, denoiser_obj
 
 def estimate_water_vapor_varphi (stage0_data_dct, prev_hat_chi_arr, tau_chi_flt, tau_varphi_flt, 
-    max_iter_int, epsilon_flt, verbose_int, sparsa_cfg_chi_obj, sparsa_cfg_varphi_obj):
+    max_iter_int, epsilon_flt, verbose_bl, sparsa_cfg_chi_obj, sparsa_cfg_varphi_obj):
     
     # Create the Poisson thinning objects
     on_poisson_thn_obj = denoise.poissonthin (stage0_data_dct ['on_cnts_arr'], 
@@ -122,8 +122,9 @@ def estimate_water_vapor_varphi (stage0_data_dct, prev_hat_chi_arr, tau_chi_flt,
         # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         # Estimate water vapor
         # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        print ('[{:d}/{:d}] varphi_tau = {:.2e}; estimating water vapor'.format (j_idx, 
-            max_iter_int, tau_varphi_flt))
+        if verbose_bl is True:
+            print ('[{:d}/{:d}] varphi_tau = {:.2e}; estimating water vapor'.format (j_idx + 1, 
+                max_iter_int, tau_varphi_flt))
         # Create water vapor estimator
         A_arr = chi_A_arr * np.exp (prev_hat_chi_arr)
         est_varphi_obj = poissonmodel5 (on_poisson_thn_obj, off_poisson_thn_obj, 
@@ -132,7 +133,8 @@ def estimate_water_vapor_varphi (stage0_data_dct, prev_hat_chi_arr, tau_chi_flt,
         
         # Do the estimation
         hat_varphi_arr, _, status_msg_str, varphi_sparsa_obj = est_varphi_obj.estimate (prev_hat_varphi_arr, tau_varphi_flt)
-        print ('\t{:s}'.format (status_msg_str)) 
+        if verbose_bl is True:
+            print ('\t{:s}'.format (status_msg_str)) 
         
         # Record the objective function; first get the forward model and then the subproblem
         trn_fw_model_obj, vld_fw_model_obj, _ = est_varphi_obj.getphymodel ()
@@ -151,8 +153,9 @@ def estimate_water_vapor_varphi (stage0_data_dct, prev_hat_chi_arr, tau_chi_flt,
         # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         # Create the attenuated backscatter
         # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        print ('[{:d}/{:d}] chi_tau = {:.2e}; estimating attenuated backscatter'.format (j_idx, 
-            max_iter_int, tau_chi_flt))
+        if verbose_bl is True:
+            print ('[{:d}/{:d}] chi_tau = {:.2e}; estimating attenuated backscatter'.format (j_idx + 1, 
+                max_iter_int, tau_chi_flt))
         # Create attenuated backscatter estimator
         on_A_arr = chi_A_arr * np.exp (-2 * del_R_flt * np.cumsum (on_sigma_arr * hat_varphi_arr, axis=0))
         on_B_arr = np.ones_like (on_A_arr)
@@ -166,7 +169,8 @@ def estimate_water_vapor_varphi (stage0_data_dct, prev_hat_chi_arr, tau_chi_flt,
         
         # Do the estimation
         hat_chi_arr, _, status_msg_str, chi_sparsa_obj = est_chi_obj.estimate (prev_hat_chi_arr, tau_chi_flt)
-        print ('\t{:s}'.format (status_msg_str))
+        if verbose_bl is True:
+            print ('\t{:s}'.format (status_msg_str))
         
         # Record the objective function; first get the forward model and then the subproblem
         trn_fw_model_obj, vld_fw_model_obj, _ = est_chi_obj.getphymodel ()

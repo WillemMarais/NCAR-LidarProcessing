@@ -85,16 +85,16 @@ stage0_data_dct ['geoO_arr'] = geoO_arr
 # subs_off_bg_arr = on_bg_arr.copy () [:, 0:1]
 
 stage0_reduced_data_dct = dict ()
-stage0_reduced_data_dct ['range_arr'] = stage0_data_dct ['range_arr'][4:80, :]
-stage0_reduced_data_dct ['geoO_arr'] = stage0_data_dct ['geoO_arr'][4:80, :]
+stage0_reduced_data_dct ['range_arr'] = stage0_data_dct ['range_arr'][0:80, :]
+stage0_reduced_data_dct ['geoO_arr'] = stage0_data_dct ['geoO_arr'][0:80, :]
 stage0_reduced_data_dct ['pre_bin_range_arr'] = stage0_data_dct ['pre_bin_range_arr']
-stage0_reduced_data_dct ['on_cnts_arr'] = stage0_data_dct ['on_cnts_arr'].copy () [4:80, 0:36]
-stage0_reduced_data_dct ['off_cnts_arr'] = stage0_data_dct ['off_cnts_arr'].copy () [4:80, 0:36]
-stage0_reduced_data_dct ['on_bg_arr'] = stage0_data_dct ['on_bg_arr'].copy () [:, 0:36]
-stage0_reduced_data_dct ['off_bg_arr'] = stage0_data_dct ['off_bg_arr'].copy () [:, 0:36]
-stage0_reduced_data_dct ['binned_dsig_arr'] = stage0_data_dct ['binned_dsig_arr'].copy () [4:80, 0:36]
-stage0_reduced_data_dct ['binned_on_sig_arr'] = stage0_data_dct ['binned_on_sig_arr'].copy () [4:80, 0:36]
-stage0_reduced_data_dct ['binned_off_sig_arr'] = stage0_data_dct ['binned_off_sig_arr'].copy () [4:80, 0:36]
+stage0_reduced_data_dct ['on_cnts_arr'] = stage0_data_dct ['on_cnts_arr'].copy () [0:80, 0:1]
+stage0_reduced_data_dct ['off_cnts_arr'] = stage0_data_dct ['off_cnts_arr'].copy () [0:80, 0:1]
+stage0_reduced_data_dct ['on_bg_arr'] = stage0_data_dct ['on_bg_arr'].copy () [:, 0:1]
+stage0_reduced_data_dct ['off_bg_arr'] = stage0_data_dct ['off_bg_arr'].copy () [:, 0:1]
+stage0_reduced_data_dct ['binned_dsig_arr'] = stage0_data_dct ['binned_dsig_arr'].copy () [0:80, 0:1]
+stage0_reduced_data_dct ['binned_on_sig_arr'] = stage0_data_dct ['binned_on_sig_arr'].copy () [0:80, 0:1]
+stage0_reduced_data_dct ['binned_off_sig_arr'] = stage0_data_dct ['binned_off_sig_arr'].copy () [0:80, 0:1]
 stage0_reduced_data_dct ['scale_to_H2O_den_flt'] = stage0_data_dct ['scale_to_H2O_den_flt']
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -115,55 +115,79 @@ print ('(INFO) Stage 2 - Estimating water vapor and attenuated backscatter cross
 
 # Create SpaRSA configuration objects
 prev_hat_chi_arr = hat_chi_arr.copy ()
-max_iter_int = 1
+max_iter_int = 1000
 epsilon_flt = 1e-5
-verbose_int = 1
-tau_varphi_flt = 10
-tau_chi_flt = 0.01
-sparsa_cfg_chi_obj = denoise.sparsaconf (max_iter_int = 1e2, M_int = 0)
-sparsa_cfg_varphi_obj = denoise.sparsaconf (max_iter_int = 1e2, M_int = 0)
+verbose_bl = False
+tau_varphi_flt = 1
+tau_chi_flt = 1
+sparsa_cfg_chi_obj = denoise.sparsaconf (max_iter_int = 1e3, M_int = 0, verbose_int = 1e6)
+sparsa_cfg_varphi_obj = denoise.sparsaconf (max_iter_int = 1e3, M_int = 0, verbose_int = 1e6)
 
-hat_varphi_arr, hat_chi_arr, j_idx, objF_arr, re_step_avg_arr, re_step_varphi_arr, re_step_chi_arr = \
+# Try different tuning parmeters. Set the chi and varphi tuning parameters equal to each other
+tau_flt_arr = np.logspace (-1, 1, 12)
+# Record the validation errors
+vld_err_arr = np.zeros_like (tau_flt_arr)
+
+for tau_idx in range (tau_flt_arr.size):
+    tau_varphi_flt = tau_flt_arr [tau_idx]
+    tau_chi_flt = tau_flt_arr [tau_idx]
+    
+    message_str = '[{:d}/{:d}] tau_flt = {:.2e}'.format (tau_idx + 1, tau_flt_arr.size, tau_chi_flt)
+    print (message_str)
+    
+    hat_varphi_arr, hat_chi_arr, j_idx, objF_arr, _vld_err_arr, re_step_avg_arr, re_step_varphi_arr, re_step_chi_arr = \
+        inference.estimate_water_vapor_varphi (stage0_reduced_data_dct, prev_hat_chi_arr, tau_chi_flt, tau_varphi_flt, 
+            max_iter_int, epsilon_flt, verbose_bl, sparsa_cfg_chi_obj, sparsa_cfg_varphi_obj)
+    
+    vld_err_arr [tau_idx] = _vld_err_arr [j_idx]
+
+opt_tau_flt = tau_flt_arr [vld_err_arr.argmin ()]
+tau_varphi_flt = opt_tau_flt
+tau_chi_flt = opt_tau_flt
+hat_varphi_arr, hat_chi_arr, j_idx, objF_arr, _vld_err_arr, re_step_avg_arr, re_step_varphi_arr, re_step_chi_arr = \
     inference.estimate_water_vapor_varphi (stage0_reduced_data_dct, prev_hat_chi_arr, tau_chi_flt, tau_varphi_flt, 
-        max_iter_int, epsilon_flt, verbose_int, sparsa_cfg_chi_obj, sparsa_cfg_varphi_obj)
+        max_iter_int, epsilon_flt, verbose_bl, sparsa_cfg_chi_obj, sparsa_cfg_varphi_obj)
 
-figure (1)
-plot (objF_arr - objF_arr.min () + 1)
-semilogy ()
-title ('Relative objective function')
-
-figure (2)
-plot (re_step_avg_arr)
-semilogy ()
-title ('Relative step size')
-
-# Get calibration parameters
-range_arr = stage0_reduced_data_dct ['range_arr']
-geoO_arr = stage0_reduced_data_dct ['geoO_arr']
-
-# Get the background counts
-on_bg_arr = stage0_reduced_data_dct ['on_bg_arr']
-off_bg_arr = stage0_reduced_data_dct ['off_bg_arr']
-
-on_sigma_arr = stage0_reduced_data_dct ['binned_on_sig_arr'] / stage0_reduced_data_dct ['scale_to_H2O_den_flt']
-off_sigma_arr = stage0_reduced_data_dct ['binned_off_sig_arr'] / stage0_reduced_data_dct ['scale_to_H2O_den_flt']
-
-# Compute delta range
-del_R_flt = np.mean (np.diff (stage0_data_dct ['range_arr'].ravel ()))
-
-on_reconstruct_arr = range_arr * geoO_arr * np.exp (hat_chi_arr) \
-    * np.exp (-2 * del_R_flt * np.cumsum (on_sigma_arr * hat_varphi_arr, axis = 0)) + on_bg_arr
-
-off_reconstruct_arr = range_arr * geoO_arr * np.exp (hat_chi_arr) \
-    * np.exp (-2 * del_R_flt * np.cumsum (off_sigma_arr * hat_varphi_arr, axis = 0)) + off_bg_arr
-
-on_cnts_arr = stage0_reduced_data_dct ['on_cnts_arr']
-off_cnts_arr = stage0_reduced_data_dct ['off_cnts_arr']
-
-figure (3)
-plot (on_cnts_arr [:, 12])
-plot (on_reconstruct_arr [:, 12])
-
-figure (4)
-plot (off_cnts_arr [:, 12])
-plot (off_reconstruct_arr [:, 12])
+# figure (1)
+# plot (objF_arr - objF_arr.min () + 1)
+# semilogy ()
+# title ('Relative objective function')
+#
+# figure (2)
+# plot (re_step_avg_arr)
+# semilogy ()
+# title ('Relative step size')
+#
+# # Get calibration parameters
+# range_arr = stage0_reduced_data_dct ['range_arr']
+# geoO_arr = stage0_reduced_data_dct ['geoO_arr']
+#
+# # Get the background counts
+# on_bg_arr = stage0_reduced_data_dct ['on_bg_arr']
+# off_bg_arr = stage0_reduced_data_dct ['off_bg_arr']
+#
+# on_sigma_arr = stage0_reduced_data_dct ['binned_on_sig_arr'] / stage0_reduced_data_dct ['scale_to_H2O_den_flt']
+# off_sigma_arr = stage0_reduced_data_dct ['binned_off_sig_arr'] / stage0_reduced_data_dct ['scale_to_H2O_den_flt']
+#
+# # Compute delta range
+# del_R_flt = np.mean (np.diff (stage0_data_dct ['range_arr'].ravel ()))
+#
+# A_arr = geoO_arr / (range_arr**2)
+# A_arr = A_arr / A_arr.max () * 1000
+#
+# on_reconstruct_arr = A_arr * np.exp (hat_chi_arr) \
+#     * np.exp (-2 * del_R_flt * np.cumsum (on_sigma_arr * hat_varphi_arr, axis = 0)) + on_bg_arr
+#
+# off_reconstruct_arr = A_arr * np.exp (hat_chi_arr) \
+#     * np.exp (-2 * del_R_flt * np.cumsum (off_sigma_arr * hat_varphi_arr, axis = 0)) + off_bg_arr
+#
+# on_cnts_arr = stage0_reduced_data_dct ['on_cnts_arr']
+# off_cnts_arr = stage0_reduced_data_dct ['off_cnts_arr']
+#
+# figure (3)
+# plot (on_cnts_arr [:, 12])
+# plot (on_reconstruct_arr [:, 12])
+#
+# figure (4)
+# plot (off_cnts_arr [:, 12])
+# plot (off_reconstruct_arr [:, 12])
