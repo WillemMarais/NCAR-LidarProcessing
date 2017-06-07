@@ -41,7 +41,7 @@ def get_denoiser_atten_backscatter_chi (stage0_data_dct, sparsa_cfg_chi_obj):
         penalty_str = 'TV'
     
     # Create system matrix
-    A_arr = range_arr * geoO_arr
+    A_arr = geoO_arr / (range_arr**2)
     # Create the Poisson thin object
     poisson_thn_obj = denoise.poissonthin (off_y_arr, p_trn_flt = 0.5, p_vld_flt = 0.5)
     # Create lower and upper bounds
@@ -109,7 +109,7 @@ def estimate_water_vapor_varphi (stage0_data_dct, prev_hat_chi_arr, tau_chi_flt,
         print ('[{:d}/{:d}] varphi_tau = {:.2e}; estimating water vapor'.format (j_idx, 
             max_iter_int, tau_varphi_flt))
         # Create water vapor estimator
-        A_arr = range_arr * geoO_arr * np.exp (prev_hat_chi_arr)
+        A_arr = (geoO_arr / (range_arr**2)) * np.exp (prev_hat_chi_arr)
         est_varphi_obj = poissonmodel5 (on_poisson_thn_obj, off_poisson_thn_obj, 
             on_sigma_arr, off_sigma_arr, on_bg_arr, A_arr, off_bg_arr, A_arr, 
             sparsa_cfg_varphi_obj, varphi_lb_arr, varphi_ub_arr, delta_R_flt = del_R_flt)
@@ -135,9 +135,9 @@ def estimate_water_vapor_varphi (stage0_data_dct, prev_hat_chi_arr, tau_chi_flt,
         print ('[{:d}/{:d}] chi_tau = {:.2e}; estimating attenuated backscatter'.format (j_idx, 
             max_iter_int, tau_chi_flt))
         # Create attenuated backscatter estimator
-        on_A_arr = range_arr * geoO_arr * np.exp (-2 * del_R_flt * np.cumsum (on_sigma_arr * hat_varphi_arr, axis=0))
+        on_A_arr = (geoO_arr / (range_arr**2)) * np.exp (-2 * del_R_flt * np.cumsum (on_sigma_arr * hat_varphi_arr, axis=0))
         on_B_arr = np.ones_like (on_A_arr)
-        off_A_arr = range_arr * geoO_arr * np.exp (-2 * del_R_flt * np.cumsum (off_sigma_arr * hat_varphi_arr, axis=0))
+        off_A_arr = (geoO_arr / (range_arr**2)) * np.exp (-2 * del_R_flt * np.cumsum (off_sigma_arr * hat_varphi_arr, axis=0))
         off_B_arr = np.ones_like (off_A_arr)
         
         est_chi_obj = poissonmodelLogLinearTwoChannel (on_poisson_thn_obj, off_poisson_thn_obj, 
