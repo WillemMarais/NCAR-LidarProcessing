@@ -85,16 +85,16 @@ stage0_data_dct ['geoO_arr'] = geoO_arr
 # subs_off_bg_arr = on_bg_arr.copy () [:, 0:1]
 
 stage0_reduced_data_dct = dict ()
-stage0_reduced_data_dct ['range_arr'] = stage0_data_dct ['range_arr'][:80, :]
-stage0_reduced_data_dct ['geoO_arr'] = stage0_data_dct ['geoO_arr'][:80, :]
+stage0_reduced_data_dct ['range_arr'] = stage0_data_dct ['range_arr'][4:80, :]
+stage0_reduced_data_dct ['geoO_arr'] = stage0_data_dct ['geoO_arr'][4:80, :]
 stage0_reduced_data_dct ['pre_bin_range_arr'] = stage0_data_dct ['pre_bin_range_arr']
-stage0_reduced_data_dct ['on_cnts_arr'] = stage0_data_dct ['on_cnts_arr'].copy () [:80, 0:1]
-stage0_reduced_data_dct ['off_cnts_arr'] = stage0_data_dct ['off_cnts_arr'].copy () [:80, 0:1]
-stage0_reduced_data_dct ['on_bg_arr'] = stage0_data_dct ['on_bg_arr'].copy () [:80, 0:1]
-stage0_reduced_data_dct ['off_bg_arr'] = stage0_data_dct ['off_bg_arr'].copy () [:80, 0:1]
-stage0_reduced_data_dct ['binned_dsig_arr'] = stage0_data_dct ['binned_dsig_arr'].copy () [:80, 0:1]
-stage0_reduced_data_dct ['binned_on_sig_arr'] = stage0_data_dct ['binned_on_sig_arr'].copy () [:80, 0:1]
-stage0_reduced_data_dct ['binned_off_sig_arr'] = stage0_data_dct ['binned_off_sig_arr'].copy () [:80, 0:1]
+stage0_reduced_data_dct ['on_cnts_arr'] = stage0_data_dct ['on_cnts_arr'].copy () [4:80, 0:36]
+stage0_reduced_data_dct ['off_cnts_arr'] = stage0_data_dct ['off_cnts_arr'].copy () [4:80, 0:36]
+stage0_reduced_data_dct ['on_bg_arr'] = stage0_data_dct ['on_bg_arr'].copy () [:, 0:36]
+stage0_reduced_data_dct ['off_bg_arr'] = stage0_data_dct ['off_bg_arr'].copy () [:, 0:36]
+stage0_reduced_data_dct ['binned_dsig_arr'] = stage0_data_dct ['binned_dsig_arr'].copy () [4:80, 0:36]
+stage0_reduced_data_dct ['binned_on_sig_arr'] = stage0_data_dct ['binned_on_sig_arr'].copy () [4:80, 0:36]
+stage0_reduced_data_dct ['binned_off_sig_arr'] = stage0_data_dct ['binned_off_sig_arr'].copy () [4:80, 0:36]
 stage0_reduced_data_dct ['scale_to_H2O_den_flt'] = stage0_data_dct ['scale_to_H2O_den_flt']
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -103,7 +103,9 @@ stage0_reduced_data_dct ['scale_to_H2O_den_flt'] = stage0_data_dct ['scale_to_H2
 print ('(INFO) Stage 1 - Get initial estimate of the attenuated backscatter cross-section')
 
 sparsa_cfg_obj = denoise.sparsaconf (eps_flt = 1e-6)
-hat_chi_arr, chi_denoiser_obj = inference.get_denoiser_atten_backscatter_chi (stage0_reduced_data_dct, sparsa_cfg_obj)
+kwargs_denoiseconf_dct = dict (log10_reg_lst = [-2, 1])
+hat_chi_arr, chi_denoiser_obj = inference.get_denoiser_atten_backscatter_chi (stage0_reduced_data_dct, sparsa_cfg_obj, 
+    kwargs_denoiseconf_dct)
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Stage 2 - now estimate both the water vapor and the attenuated backscatter cross-section. The water vapor is 
@@ -113,11 +115,11 @@ print ('(INFO) Stage 2 - Estimating water vapor and attenuated backscatter cross
 
 # Create SpaRSA configuration objects
 prev_hat_chi_arr = hat_chi_arr.copy ()
-max_iter_int = 20
+max_iter_int = 1
 epsilon_flt = 1e-5
 verbose_int = 1
 tau_varphi_flt = 10
-tau_chi_flt = 10
+tau_chi_flt = 0.01
 sparsa_cfg_chi_obj = denoise.sparsaconf (max_iter_int = 1e2, M_int = 0)
 sparsa_cfg_varphi_obj = denoise.sparsaconf (max_iter_int = 1e2, M_int = 0)
 
@@ -159,7 +161,9 @@ on_cnts_arr = stage0_reduced_data_dct ['on_cnts_arr']
 off_cnts_arr = stage0_reduced_data_dct ['off_cnts_arr']
 
 figure (3)
-plot (on_cnts_arr [:, 12] - on_reconstruct_arr [:, 12])
+plot (on_cnts_arr [:, 12])
+plot (on_reconstruct_arr [:, 12])
 
 figure (4)
-plot (off_cnts_arr [:, 12] - off_reconstruct_arr [:, 12])
+plot (off_cnts_arr [:, 12])
+plot (off_reconstruct_arr [:, 12])
