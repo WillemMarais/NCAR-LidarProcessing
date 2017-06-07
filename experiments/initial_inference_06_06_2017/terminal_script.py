@@ -67,7 +67,10 @@ stage0_data_dct ['geoO_arr'] = geoO_arr
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Reduce the size of the image to make it more computational feasible
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
+subs_on_y_arr = stage0_data_dct ['on_cnts_arr'].copy ()[:, 0:20]
+subs_off_y_arr = stage0_data_dct ['off_cnts_arr'].copy ()[:, 0:20]
+subs_on_bg_arr = on_bg_arr.copy () [:, 0:20]
+subs_off_bg_arr = on_bg_arr.copy () [:, 0:20]
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Stage 1 - get intial estimate of the attenuated backscatter cross-section, which I call \chi.
