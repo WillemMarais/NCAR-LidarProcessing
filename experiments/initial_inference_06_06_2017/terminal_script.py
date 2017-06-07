@@ -32,8 +32,9 @@ if tmp_fileP_str not in sys.path:
 # ---------------------------------------------------------------------------------------------------------------------
 # Import modules
 # ---------------------------------------------------------------------------------------------------------------------
-import stage0_prepare_data
 import inference
+import stage0_prepare_data
+import ptv.hsrl.denoise as denoise
 
 # ---------------------------------------------------------------------------------------------------------------------
 # Do the experiment
@@ -43,7 +44,7 @@ import inference
 # Stage 0 - prepare data
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Get data
-stage0_data_dct = stage0_prepare_data.get_data_delR_120m_delT_120s (recompute_bl = False)
+stage0_data_dct = stage0_prepare_data.get_data_delR_120m_delT_120s (recompute_bl = True, recompute_sig_bl = True)
 # Select data that corresponds to night time
 stage0_data_dct ['on_cnts_arr'] = stage0_data_dct ['on_cnts_arr'][:, 78:300]
 stage0_data_dct ['off_cnts_arr'] = stage0_data_dct ['off_cnts_arr'][:, 78:300]
@@ -53,17 +54,31 @@ stage0_data_dct ['binned_dsig_arr'] = stage0_data_dct ['binned_dsig_arr'][:, 78:
 geo_range_arr, geoO_arr = stage0_prepare_data.get_geoO_delR_120m ()
 
 # Denoise the background
-on_y_arr = stage0_data_dct ['on_cnts_arr']
-off_y_arr = stage0_data_dct ['off_cnts_arr']
 bin_start_idx = 127
 bin_end_idx = 139
 
-on_bg_arr = inference.denoise_background (on_y_arr, bin_start_idx, bin_end_idx)
-off_bg_arr = inference.denoise_background (off_y_arr, bin_start_idx, bin_end_idx)
+on_bg_arr = inference.denoise_background (stage0_data_dct ['on_cnts_arr'], bin_start_idx, bin_end_idx)
+off_bg_arr = inference.denoise_background (stage0_data_dct ['off_cnts_arr'], bin_start_idx, bin_end_idx)
+
+stage0_data_dct ['on_bg_arr'] = on_bg_arr
+stage0_data_dct ['off_bg_arr'] = off_bg_arr
+stage0_data_dct ['geoO_arr'] = geoO_arr
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Stage 1 - get intial estimate of the attenuated backscatter cross-section, which I call \chi
+# Reduce the size of the image to make it more computational feasible
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-range_arr = stage0_data_dct ['range_arr']
-chi_denoiser_obj = inference.get_denoiser_atten_backscatter_chi (off_y_arr, off_bg_arr, range_arr, geoO_arr)
 
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Stage 1 - get intial estimate of the attenuated backscatter cross-section, which I call \chi.
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+sparsa_cfg_obj = denoise.sparsaconf ()
+hat_chi_arr, chi_denoiser_obj = inference.get_denoiser_atten_backscatter_chi (stage0_data_dct, sparsa_cfg_obj)
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Stage 2 - now estimate both the water vapor and the attenuated backscatter cross-section. The water vapor is 
+# denoted by \varphi, and the \chi denotes the attenuated backscatter cross-section.
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Create SpaRSA configuration objects
+sparsa_cfg_varphi_obj = denoise.sparsaconf (max_iter_int = 1e2, M_int = 1)
+sparsa_cfg_chi_obj = denoise.sparsaconf (max_iter_int = 1e2, M_int = 1)

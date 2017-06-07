@@ -25,15 +25,15 @@ def get_geoO_delR_120m ():
     
     return binned_geo_range_arr, binned_geoO_arr
 
-def get_data_delR_120m_delT_120s (recompute_bl = False):
+def get_data_delR_120m_delT_120s (recompute_bl = False, recompute_sig_bl = False):
     """Return photon counting data with a range resolution of 120m, and time resolution of 120s. The dataset that is 
     used is from 2017-05-24, from hour 0 (UTC?) to hour 18."""
     
     data_fileP_str = os.path.join (os.path.dirname (__file__), 'data', 'data_delR_120m_delT_120s.p')
     if (os.path.exists (data_fileP_str) is True) and (recompute_bl is False):
-        data_dct = pickle.load (open (data_fileP_str, 'rb'))
+        stage0_data_dct = pickle.load (open (data_fileP_str, 'rb'))
         
-        return data_dct
+        return stage0_data_dct
     
     # Set the paths of the data
     basepath = os.path.join (os.environ ['HOME'], 'ProjectsSSEC/Research_local/UCARDial/Data/')
@@ -118,16 +118,6 @@ def get_data_delR_120m_delT_120s (recompute_bl = False):
     # Readjust the nr of profiles and bins
     N, K = on_cnts_arr.shape
 
-    # Compute the background radiation
-    on_bg_arr = on_cnts_arr [(N - 12):, :].mean (axis = 0) [np.newaxis]
-    off_bg_arr = off_cnts_arr [(N - 12):, :].mean (axis = 0) [np.newaxis]
-
-    # on_cnts_bs_arr = on_cnts_arr - on_bg_arr
-    # off_cnts_bs_arr = off_cnts_arr - off_bg_arr
-    #
-    # phi_arr = np.log (on_cnts_bs_arr * off_cnts_bs_arr)
-    # psi_arr = np.log (on_cnts_bs_arr / off_cnts_bs_arr)
-
     # Get the molecular backscatter
     print ('[stage 0] Loading H20 differential absorption coefficient')
     tres_wv = 120.0
@@ -152,9 +142,11 @@ def get_data_delR_120m_delT_120s (recompute_bl = False):
     nWV.range_array = range_diff
 
     wv_abs_cs_fileP_str = os.path.join (priv_dataP_str, 'wv_absorption_cross_section_2017_05_24_00h00_18h00_resol_120s.p')
-    if os.path.exists (wv_abs_cs_fileP_str) is False:
+    if (os.path.exists (wv_abs_cs_fileP_str) is False) or (recompute_sig_bl is True):
         print ('[stage 0] (WARNING) The file {:s} does not exist, recomputing H20 differential absorption coefficient.')
         dsig = np.zeros ((nWV.time.size, nWV.range_array.size))
+        on_sig_arr = np.zeros ((nWV.time.size, nWV.range_array.size))
+        off_sig_arr = np.zeros ((nWV.time.size, nWV.range_array.size))
         for ai in range (OnLine.time.size):
             # compute frequencies from wavelength terms
             nuOff = lp.c / lambda_off [ai]  # Offline laser frequency
@@ -163,14 +155,25 @@ def get_data_delR_120m_delT_120s (recompute_bl = False):
                 nuLim = np.array ([lp.c / 828.5e-9, lp.c / 828e-9]), freqnorm = True)
             sigOn = sigWV0 [:, 0]
             sigOff = sigWV0 [:, 1]
-    
+            
             # interpolate difference in absorption to range_diff grid points
             dsig[ai,:] = np.interp (range_diff, OnLine.range_array, sigOn - sigOff)  
-        
+            on_sig_arr [ai, :] = np.interp (range_diff, OnLine.range_array, sigOn)
+            off_sig_arr [ai, :] = np.interp (range_diff, OffLine.range_array, sigOff)
+            
+            sig_data_dct = dict (
+                dsig = dsig,
+                on_sig_arr = on_sig_arr,
+                off_sig_arr = off_sig_arr)
+            
             with open (wv_abs_cs_fileP_str, 'wb') as file_obj:
-                pickle.dump (dsig, file_obj, protocol = 2)
+                pickle.dump (sig_data_dct, file_obj, protocol = 2)
     else:
-        dsig = pickle.load (open (wv_abs_cs_fileP_str, 'rb'))
+        sig_data_dct = pickle.load (open (wv_abs_cs_fileP_str, 'rb'))
+        
+        dsig = sig_data_dct ['dsig']
+        on_sig_arr = sig_data_dct ['on_sig_arr']
+        off_sig_arr = sig_data_dct ['off_sig_arr']
     
     # Remove the first bin from the photon counting observations so to remove laser energy pulse scattering
     on_cnts_arr = on_cnts_arr [1:, :]
@@ -180,20 +183,30 @@ def get_data_delR_120m_delT_120s (recompute_bl = False):
     
     # Reduce the resolution of the difference absorption coefficient
     binned_dsig_arr = bin_image (dsig.T, 4, 1) / 4.0
+    binned_on_sig_arr = bin_image (on_sig_arr.T, 4, 1) / 4.0
+    binned_off_sig_arr = bin_image (off_sig_arr.T, 4, 1) / 4.0
     
     # Truncate dsig over the temporal axis. This is a hack; need to find a way to properly align photon counting images
     # and difference absorption coefficient.
     binned_dsig_arr = binned_dsig_arr [:, 28:][:, :-28]
+    binned_on_sig_arr = binned_on_sig_arr [:, 28:][:, :-28]
+    binned_off_sig_arr = binned_off_sig_arr [:, 28:][:, :-28]
     
-    data_dct = dict (range_arr = range_arr,
+    # Get scaling factor that is used to compute the water vapor density
+    scale_to_H2O_den_flt = lp.mH2O / lp.N_A
+    
+    stage0_data_dct = dict (range_arr = range_arr,
         pre_bin_range_arr = pre_bin_range_arr,
         on_cnts_arr = on_cnts_arr,
         off_cnts_arr = off_cnts_arr,
-        binned_dsig_arr = binned_dsig_arr)
+        binned_dsig_arr = binned_dsig_arr,
+        binned_on_sig_arr = binned_on_sig_arr,
+        binned_off_sig_arr = binned_off_sig_arr,
+        scale_to_H2O_den_flt = scale_to_H2O_den_flt)
     
     data_fileP_str = os.path.join (os.path.dirname (__file__),  'data', 'data_delR_120m_delT_120s.p')
     with open (data_fileP_str, 'wb') as file_obj:
-        pickle.dump (data_dct, file_obj, protocol = 2)
+        pickle.dump (stage0_data_dct, file_obj, protocol = 2)
     
-    return data_dct
+    return stage0_data_dct
     
