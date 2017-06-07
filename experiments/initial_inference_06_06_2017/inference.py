@@ -110,6 +110,10 @@ def estimate_water_vapor_varphi (stage0_data_dct, prev_hat_chi_arr, tau_chi_flt,
     chi_lb_arr = np.zeros_like (prev_hat_chi_arr) - np.inf
     chi_ub_arr = np.zeros_like (prev_hat_chi_arr) + np.inf
     
+    # This is used in both the forwards models for the estimating chi and varphi
+    chi_A_arr = geoO_arr / (range_arr**2)
+    chi_A_arr = A_arr / A_arr.max () * 1000
+    
     for j_idx in range (max_iter_int):
         # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         # Estimate water vapor
@@ -117,8 +121,7 @@ def estimate_water_vapor_varphi (stage0_data_dct, prev_hat_chi_arr, tau_chi_flt,
         print ('[{:d}/{:d}] varphi_tau = {:.2e}; estimating water vapor'.format (j_idx, 
             max_iter_int, tau_varphi_flt))
         # Create water vapor estimator
-        A_arr = (geoO_arr / (range_arr**2)) * np.exp (prev_hat_chi_arr)
-        A_arr = A_arr / A_arr.max () * 1000
+        A_arr = chi_A_arr * np.exp (prev_hat_chi_arr)
         est_varphi_obj = poissonmodel5 (on_poisson_thn_obj, off_poisson_thn_obj, 
             on_sigma_arr, off_sigma_arr, on_bg_arr, A_arr, off_bg_arr, A_arr, 
             sparsa_cfg_varphi_obj, varphi_lb_arr, varphi_ub_arr, delta_R_flt = del_R_flt)
@@ -144,9 +147,6 @@ def estimate_water_vapor_varphi (stage0_data_dct, prev_hat_chi_arr, tau_chi_flt,
         print ('[{:d}/{:d}] chi_tau = {:.2e}; estimating attenuated backscatter'.format (j_idx, 
             max_iter_int, tau_chi_flt))
         # Create attenuated backscatter estimator
-        chi_A_arr = geoO_arr / (range_arr**2)
-        chi_A_arr = A_arr / A_arr.max () * 1000
-        
         on_A_arr = chi_A_arr * np.exp (-2 * del_R_flt * np.cumsum (on_sigma_arr * hat_varphi_arr, axis=0))
         on_B_arr = np.ones_like (on_A_arr)
         off_A_arr = chi_A_arr * np.exp (-2 * del_R_flt * np.cumsum (off_sigma_arr * hat_varphi_arr, axis=0))
