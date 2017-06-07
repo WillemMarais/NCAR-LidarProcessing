@@ -143,7 +143,13 @@ def get_data_delR_120m_delT_120s (recompute_bl = False, recompute_sig_bl = False
 
     wv_abs_cs_fileP_str = os.path.join (priv_dataP_str, 'wv_absorption_cross_section_2017_05_24_00h00_18h00_resol_120s.p')
     if (os.path.exists (wv_abs_cs_fileP_str) is False) or (recompute_sig_bl is True):
-        print ('[stage 0] (WARNING) The file {:s} does not exist, recomputing H20 differential absorption coefficient.')
+        if recompute_sig_bl is False:
+            warning_str = '[stage 0] (WARNING) The file {:s} does not exist, ' \
+                + 'recomputing H20 differential absorption coefficient.'
+            print (warning_str.format (wv_abs_cs_fileP_str))
+        else:
+            print ('(WARNING) Recomputing H20 differential absorption coefficient.')
+            
         dsig = np.zeros ((nWV.time.size, nWV.range_array.size))
         on_sig_arr = np.zeros ((nWV.time.size, nWV.range_array.size))
         off_sig_arr = np.zeros ((nWV.time.size, nWV.range_array.size))

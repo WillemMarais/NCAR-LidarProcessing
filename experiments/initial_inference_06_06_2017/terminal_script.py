@@ -44,7 +44,7 @@ import ptv.hsrl.denoise as denoise
 # Stage 0 - prepare data
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Get data
-stage0_data_dct = stage0_prepare_data.get_data_delR_120m_delT_120s (recompute_bl = True, recompute_sig_bl = True)
+stage0_data_dct = stage0_prepare_data.get_data_delR_120m_delT_120s (recompute_bl = False, recompute_sig_bl = False)
 # Select data that corresponds to night time
 stage0_data_dct ['on_cnts_arr'] = stage0_data_dct ['on_cnts_arr'][:, 78:300]
 stage0_data_dct ['off_cnts_arr'] = stage0_data_dct ['off_cnts_arr'][:, 78:300]
@@ -67,16 +67,22 @@ stage0_data_dct ['geoO_arr'] = geoO_arr
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Reduce the size of the image to make it more computational feasible
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-subs_on_y_arr = stage0_data_dct ['on_cnts_arr'].copy ()[:, 0:20]
-subs_off_y_arr = stage0_data_dct ['off_cnts_arr'].copy ()[:, 0:20]
-subs_on_bg_arr = on_bg_arr.copy () [:, 0:20]
-subs_off_bg_arr = on_bg_arr.copy () [:, 0:20]
+# subs_on_y_arr = stage0_data_dct ['on_cnts_arr'].copy ()[:, 0:1]
+# subs_off_y_arr = stage0_data_dct ['off_cnts_arr'].copy ()[:, 0:1]
+# subs_on_bg_arr = on_bg_arr.copy () [:, 0:1]
+# subs_off_bg_arr = on_bg_arr.copy () [:, 0:1]
+
+stage0_reduced_data_dct = stage0_data_dct
+stage0_reduced_data_dct ['on_cnts_arr'] = stage0_data_dct ['on_cnts_arr'].copy () [:, 0:12]
+stage0_reduced_data_dct ['off_cnts_arr'] = stage0_data_dct ['off_cnts_arr'].copy () [:, 0:12]
+stage0_reduced_data_dct ['on_bg_arr'] = stage0_data_dct ['on_bg_arr'].copy () [:, 0:12]
+stage0_reduced_data_dct ['off_bg_arr'] = stage0_data_dct ['off_bg_arr'].copy () [:, 0:12]
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Stage 1 - get intial estimate of the attenuated backscatter cross-section, which I call \chi.
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 sparsa_cfg_obj = denoise.sparsaconf ()
-hat_chi_arr, chi_denoiser_obj = inference.get_denoiser_atten_backscatter_chi (stage0_data_dct, sparsa_cfg_obj)
+hat_chi_arr, chi_denoiser_obj = inference.get_denoiser_atten_backscatter_chi (stage0_reduced_data_dct, sparsa_cfg_obj)
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Stage 2 - now estimate both the water vapor and the attenuated backscatter cross-section. The water vapor is 

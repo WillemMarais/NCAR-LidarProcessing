@@ -33,15 +33,24 @@ def get_denoiser_atten_backscatter_chi (stage0_data_dct, sparsa_cfg_chi_obj):
     range_arr = stage0_data_dct ['range_arr']
     geoO_arr = stage0_data_dct ['geoO_arr']
     
+    N, K = off_y_arr.shape
+    if K == 1:
+        penalty_str = 'condatTV'
+    else:
+        penalty_str = 'TV'
+    
     # Create system matrix
     A_arr = range_arr * geoO_arr
     # Create the Poisson thin object
     poisson_thn_obj = denoise.poissonthin (off_y_arr, p_trn_flt = 0.5, p_vld_flt = 0.5)
+    # Create lower and upper bounds
+    lb_arr = np.zeros (shape = off_y_arr.shape) - 7
+    ub_arr = np.zeros (shape = off_y_arr.shape) + 7
     # Create the estimator object
     est_obj = poissonmodel0 (poisson_thn_obj, b_arr = off_bg_arr, A_arr = A_arr, log_model_bl = True, 
-        sparsaconf_obj = sparsa_cfg_chi_obj, penalty_str = 'TV')
+        lb_arr = lb_arr, ub_arr = ub_arr, sparsaconf_obj = sparsa_cfg_chi_obj, penalty_str = penalty_str)
     # Create the denoiser object
-    denoise_cnf_obj = denoise.denoiseconf (log10_reg_lst = [-2, 2], pen_type_str = 'TV', verbose_bl = True)
+    denoise_cnf_obj = denoise.denoiseconf (log10_reg_lst = [-2, 2], pen_type_str = penalty_str, verbose_bl = True)
     denoiser_obj = denoise.denoisepoisson (est_obj, denoise_cnf_obj)
     
     denoiser_obj.denoise ()
