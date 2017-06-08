@@ -4,6 +4,8 @@ from ptv.estimators.poissonnoise import poissonmodel0
 
 def denoise_background (y_arr, nr_profiles_arr, bin_start_idx, bin_end_idx):
     """
+    Denoise the background counts. 
+    
     Parameters
     ----------
     y_arr : np.array
@@ -27,7 +29,7 @@ def denoise_background (y_arr, nr_profiles_arr, bin_start_idx, bin_end_idx):
     # Accumulate the photon counts for the range region where there is mostly dark counts and solar background radation
     bg_y_arr = y_arr [bin_start_idx:bin_end_idx, :]
     # Check how many bin numbers the accumulated photon counts corresponds to
-    N, _ = bg_y_arr.shape
+    N, K = bg_y_arr.shape
     # The denoising software in this specific case expect a column vector. TODO: Adapt the PTV software to be invariant 
     # of they type of vector.
     bg_y_arr = bg_y_arr.sum (axis = 0)[np.newaxis].T
@@ -42,8 +44,8 @@ def denoise_background (y_arr, nr_profiles_arr, bin_start_idx, bin_end_idx):
     est_obj = poissonmodel0 (poisson_thn_obj, A_arr = A_arr, log_model_bl = True, penalty_str = 'condatTV', 
         sparsaconf_obj = sparsa_cfg_obj)
     # Create the denoiser object
-    denoise_cnf_obj = denoise.denoiseconf (log10_reg_lst = [-4, 4], nr_reg_int = 48, 
-        pen_type_str = 'condatTV', verbose_bl = True)
+    denoise_cnf_obj = denoise.denoiseconf (log10_reg_lst = [3 - np.log10 (K), 7 - np.log10 (K)], nr_reg_int = 48, 
+        pen_type_str = 'condatTV', verbose_bl = False)
     denoiser_obj = denoise.denoisepoisson (est_obj, denoise_cnf_obj)
     # Start the denoising
     denoiser_obj.denoise ()
