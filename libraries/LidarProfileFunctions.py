@@ -373,18 +373,22 @@ class LidarProfile():
     
 #                for ai in range(0,np.size(tedges)-1):
                 for ai in range(np.size(timeNew)):
-                    if hasattr(self.profile,'mask') and average:
+                    if hasattr(self.profile,'mask'):
                         NumProf = np.nansum(np.logical_not(self.profile[itime == ai+iprofstart,:].mask),axis=0)
-                        NumProf[np.nonzero(NumProf==0)] = 1.0
-                    elif average:
+                        NumProfDiv = NumProf.copy()
+                        NumProfDiv[np.nonzero(NumProf==0)] = 1.0
+                    else:
                         NumProf = self.profile[itime == ai+iprofstart,:].shape[0]
                         if NumProf == 0:
-                            NumProf = 1.0
-                    else:
-                        NumProf = 1.0
-                    profNew[ai,:] = np.nansum(self.profile[itime == ai+iprofstart,:],axis=0)/NumProf
-                    var_profNew[ai,:] = np.nansum(self.profile_variance[itime == ai+iprofstart,:],axis=0)/NumProf**2 
-                    shot_countNew[ai] =1.0* np.nansum(self.shot_count[itime == ai+iprofstart])/NumProf
+                            NumProfDiv = 1.0
+                        else:
+                            NumProfDiv = NumProf
+                    if not average:
+                        NumProfDiv = 1.0
+                        
+                    profNew[ai,:] = np.nansum(self.profile[itime == ai+iprofstart,:],axis=0)/NumProfDiv
+                    var_profNew[ai,:] = np.nansum(self.profile_variance[itime == ai+iprofstart,:],axis=0)/NumProfDiv**2 
+                    shot_countNew[ai] =1.0* np.nansum(self.shot_count[itime == ai+iprofstart])/NumProfDiv
                     self.NumProfList[ai] = NumProf
                     
                 if remainder:
@@ -937,15 +941,16 @@ class LidarProfile():
         self.profile = self.profile*profile2.profile
         self.profile_variance = self.profile**2*profile2.profile_variance+self.profile_variance*profile2.profile**2
         
-    def write2nc(self,ncfilename,tag='',name_override=False):
+    def write2nc(self,ncfilename,tag='',name_override=False,overwrite=False):
         """
         Writes the current profile out to a netcdf file named ncfilename
         adds the string tag the variable name if name_override==False
         if name_override=True, it names the variable according to the string
         tag.
+        if overwrite = True, the routine will overwrite nc data of the same name.
+        if overwrite = False, the routine will abort without overwriting
         """
-#        ncfilename = '/h/eol/mhayman/write_py_nc.nc'
-#        fnc = netcdf.netcdf_file(ncfilename, 'w')
+
         nc_error = False
         if os.path.isfile(ncfilename):
             # if the file already exists set to modify it
@@ -959,26 +964,66 @@ class LidarProfile():
             timeNC = fnc.createVariable('time','f',('time',))
             timeNC[:] = self.time.copy()
             timeNC.units = 'seconds since 0000 UTC on ' + self.StartDate.strftime("%A %B %d, %Y")
+            tdim = 'time'
         elif fnc.dimensions['time'].size != self.time.size:
-            print('Error in %s write2nc to %s ' %(self.label,ncfilename))
-            print('  time dimension exists in %s but has size=%d'%(ncfilename,fnc.dimensions['time'].size))
-            print('  time dimension in %s has size=%d'%(self.label,self.time.size))
-            nc_error = True
+            tdim = 'time_'+self.label.replace(' ','_')+tag
+            if not any(tdim in s for s in fnc.dimensions) or overwrite: 
+                fnc.createDimension(tdim,self.time.size)
+                timeNC = fnc.createVariable(tdim,'f',(tdim,))
+                timeNC[:] = self.time.copy()
+                timeNC.units = 'seconds since 0000 UTC on ' + self.StartDate.strftime("%A %B %d, %Y")
+                print('Warning in %s write2nc to %s ' %(self.label,ncfilename))
+                print('  time dimension exists in %s but has size=%d'%(ncfilename,fnc.dimensions['time'].size))
+                print('  time dimension in %s has size=%d'%(self.label,self.time.size))
+                print('  Creating new time dimension and variable: %s'%tdim)
+            else:
+                nc_error = True
+                print('Warning in %s write2nc to %s ' %(self.label,ncfilename))
+                print('  Attempted to use <%s> as the time dimension'%tdim)
+                print('  Time dimension already exists.  Set overwrite=True to overwrite the existing data.')
+                print('  No data was written.')
+        else:
+            tdim = 'time'
+            
         if not any('range' in s for s in fnc.dimensions):        
             fnc.createDimension('range',self.range_array.size)
             rangeNC = fnc.createVariable('range','f',('range',))
             rangeNC[:] = self.range_array.copy()
             rangeNC.units = 'meters'
+            rdim = 'range'
         elif fnc.dimensions['range'].size != self.range_array.size:
-            print('Error in %s write2nc to %s ' %(self.label,ncfilename))
-            print('  range dimension exists in %s but has size=%d'%(ncfilename,fnc.dimensions['range'].size))
-            print('  range dimension in %s has size=%d'%(self.label,self.range_array.size))
-            nc_error = True
-            
-        if not any('wavelength' in s for s in fnc.variables):        
-            wavelengthNC = fnc.createVariable('wavelength','f')
+            rdim = 'range_'+self.label.replace(' ','_')+tag
+            if not any(rdim in s for s in fnc.dimensions) or overwrite: 
+                fnc.createDimension(rdim,self.range_array.size)
+                rangeNC = fnc.createVariable(rdim,'f',(rdim,))
+                rangeNC[:] = self.range_array.copy()
+                rangeNC.units = 'meters'
+                print('Warning in %s write2nc to %s ' %(self.label,ncfilename))
+                print('  Attempted to use <%s> as the range dimension'%rdim)
+                print('  range dimension exists in %s but has size=%d'%(ncfilename,fnc.dimensions['range'].size))
+                print('  range dimension in %s has size=%d'%(self.label,self.range_array.size))
+                print('  Creating new range dimension and variable: %s'%rdim)
+            else:
+                nc_error = True
+                print('Warning in %s write2nc to %s ' %(self.label,ncfilename))
+                print('  Range dimension already exists.  Set overwrite=True to overwrite the existing data.')
+                print('  No data was written.')
+        else:
+            rdim = 'range'
+        
+        wavlen_var = 'wavelength_'+self.label.replace(' ','_')+tag
+        if not any(wavlen_var in s for s in fnc.variables) or overwrite:
+            wavelengthNC = fnc.createVariable(wavlen_var,'f')
             wavelengthNC[:] = self.wavelength
             wavelengthNC.units = 'meters'
+        else:
+            print('Warning in %s write2nc to %s ' %(self.label,ncfilename))
+            print('  wavlength data already exists.  Set overwrite=True to overwrite the existing data')
+            print('  No wavelength data was written.')
+#        if not any('wavelength' in s for s in fnc.variables):        
+#            wavelengthNC = fnc.createVariable('wavelength','f')
+#            wavelengthNC[:] = self.wavelength
+#            wavelengthNC.units = 'meters'
             
 
         ###
@@ -991,11 +1036,16 @@ class LidarProfile():
             else:
                 varname = self.label.replace(' ','_')+tag
                 
-            profileNC = fnc.createVariable(varname,'double',('time','range'))
+            profileNC = fnc.createVariable(varname,'double',(tdim,rdim))
             profileNC[:,:] = self.profile.copy()
             profileNC.units = self.profile_type
-            var_profileNC = fnc.createVariable(varname+'_variance','double',('time','range'))
+            var_profileNC = fnc.createVariable(varname+'_variance','double',(tdim,rdim))
             var_profileNC[:,:] = self.profile_variance.copy()
+            
+            if hasattr(self.profile,'mask'):
+                mask_profileNC = fnc.createVariable(varname+'_mask','i8',(tdim,rdim))
+                mask_profileNC[:,:] = self.profile.mask.copy()
+                mask_profileNC.units = '1 = Masked, 0 = Not Masked'
             
             if file_exists:
                 fnc.history = fnc.history + "\nModified " + datetime.datetime.today().strftime("%m/%d/%Y")     
@@ -1121,8 +1171,10 @@ def create_ncfilename(ncbase,Years,Months,Days,Hours,tag=''):
         stopstr = stopstr+'0'+str(Minutes)
     else:
         stopstr = stopstr+str(Minutes)
-    
-    ncfilename = ncbase + '_' + startstr + '_' + stopstr + '_created_' + runday + '_' + tag + '.nc'
+    if len(tag) > 0:
+        ncfilename = ncbase + '_' + startstr + '_' + stopstr + '_created_' + runday + '_' + tag + '.nc'
+    else:
+        ncfilename = ncbase + '_' + startstr + '_' + stopstr + '_created_' + runday + '.nc'
 
     return ncfilename
 
@@ -1901,8 +1953,10 @@ def RB_Spectrum(T,P,lam,nu=np.array([]),norm=True):
     yR = RayleighBrillouin_Y(T,P,lam);
 
     #Load results from PCA analysis (RB_PCA.m)
-    # Loads M, Mavg, x1d
-    RBpca = np.load('/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/RB_PCA_Params.npz');
+    # Loads M, Mavg, x1d os.path.abspath(__file__+'/../../calibrations/')
+    filename = os.path.abspath(__file__+'/../DataFiles/') + '/RB_PCA_Params.npz'
+    RBpca = np.load(filename);
+#    RBpca = np.load('/h/eol/mhayman/PythonScripts/HSRL_Processing/NewHSRLPython/RB_PCA_Params.npz');
     M = RBpca['M']
     Mavg = RBpca['Mavg']
     x = RBpca['x']
@@ -2065,10 +2119,16 @@ def WV_ExtinctionFromHITRAN(nu,TempProf,PresProf,filename='',freqnorm=False,nuLi
     """
     nuL = np.mean(nu);
     
-    if not filename:
-#        print('Using Default HITRAN file')
-        # filename = '/h/eol/mhayman/PythonScripts/NCAR-LidarProcessing/libraries/WV_HITRAN2012_815_841.txt';
-        filename = os.path.join (os.path.dirname (__file__), 'WV_HITRAN2012_815_841.txt')
+    #     if not filename:
+    # <<<<<<< Updated upstream
+    #         filename = os.path.abspath(__file__+'/../DataFiles/') + '/WV_HITRAN2012_815_841.txt'
+    # #        filename = '/h/eol/mhayman/PythonScripts/NCAR-LidarProcessing/libraries/WV_HITRAN2012_815_841.txt';
+    # =======
+    # #        print('Using Default HITRAN file')
+    #         # filename = '/h/eol/mhayman/PythonScripts/NCAR-LidarProcessing/libraries/WV_HITRAN2012_815_841.txt';
+    #         filename = os.path.join (os.path.dirname (__file__), 'WV_HITRAN2012_815_841.txt')
+    # >>>>>>> Stashed changes
+    filename = os.path.join (os.path.dirname (__file__), 'WV_HITRAN2012_815_841.txt')
     
     Mh2o = (mH2O*1e-3)/N_A; # mass of a single water molecule, kg/mol
     

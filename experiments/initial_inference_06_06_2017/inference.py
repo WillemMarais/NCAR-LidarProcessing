@@ -4,6 +4,29 @@ import ptv.hsrl.denoise as denoise
 from ptv.estimators.poissonnoise import poissonmodel0, poissonmodelLogLinearTwoChannel, poissonmodel5
 
 def denoise_background (y_arr, bin_start_idx, bin_end_idx):
+    """
+    Denoise the background counts. 
+    
+    Parameters
+    ----------
+    y_arr : np.array
+        The photon counting image as 2-D numpy array, where the column axis (axis-0 in numpy) of the image is a photon 
+        counting profile.
+    bin_start_idx : int
+        The starting bin number of where the background counts are acquired. 
+    bin_end_idx : int
+        The last bin number of where the background counts are acquired.
+    
+    Notes
+    -----
+    The forward model is F(x) = \exp(x). So the recovered background is then exp(x). The forward model could have been 
+    x, but in this case then x has to be constrained to be non-negative. If we use the log-linear model, then x does 
+    not have to be constrained. 
+    
+    Returns
+    -------
+    The estimated background counts."""
+    
     bg_y_arr = y_arr [bin_start_idx:bin_end_idx, :]
     N, _ = bg_y_arr.shape
     bg_y_arr = bg_y_arr.sum (axis = 0)[np.newaxis].T
@@ -22,12 +45,29 @@ def denoise_background (y_arr, bin_start_idx, bin_end_idx):
 
 def get_denoiser_atten_backscatter_chi (stage0_data_dct, sparsa_cfg_chi_obj, kwargs_denoiseconf_dct = None):
     """
+    Get an initial estimate of the log of the attenuated backscatter cross-section from the offline photon counts. It 
+    is an initial estimate because we basically assume that the water vapor optical depth is zero, which is obviously 
+    not true. Nonetheless the assumption is blatantly false, we do get an estimate of the attenuated backscatter 
+    cross-section which is scaled by some calibration parameters. The estimate will become more inaccurate as the 
+    water vapor optical depth increases.
+    
+    The forward model is F(x) = Aexp(x) + b, where A is the geometric overlap function divided by the squared range and 
+    b is the background energy. 
+    
     Parameters
     ----------
-    range_arr : np.array
-        Must be a column vector.
-    geoO_arr : np.array
-        Must be a column vector."""
+    stage0_data_dct : dictionary
+        The dictionary created by the function stage0_prepare_data.get_data_delR_120m_delT_120s.
+    sparsa_cfg_chi_obj : ptv.hsrl.denoise.sparsaconf
+        The SpaRSA configuration object.
+    kwargs_denoiseconf_dct : dictionary, optional
+        Keyword arguments that can be passed to the denoiser class. Refer to ptv.hsrl.denoise.denoiseconf for more 
+        information.
+    
+    Returns
+    -------
+    A two element tuple: 1) The estimate of \chi and 2) the denoiser object. Suppose denoiser_obj is the denoiser 
+    object; the denoised offline photon counts can be accessed via denoiser_obj.getdenoised ()"""
     
     off_y_arr = stage0_data_dct ['off_cnts_arr']
     off_bg_arr = stage0_data_dct ['off_bg_arr']
@@ -70,6 +110,68 @@ def get_denoiser_atten_backscatter_chi (stage0_data_dct, sparsa_cfg_chi_obj, kwa
 
 def estimate_water_vapor_varphi (stage0_data_dct, prev_hat_chi_arr, tau_chi_flt, tau_varphi_flt, 
     max_iter_int, epsilon_flt, verbose_bl, sparsa_cfg_chi_obj, sparsa_cfg_varphi_obj):
+    """
+    Estimate the water vapor from the online and offline channels. Let \chi represent the log of the attenuated 
+    backscatter cross-section; see the documentation of the function get_denoiser_atten_backscatter_chi. Let \varphi 
+    represent the water vapor density that units of [g / m^3]. The forward for the online and offline channels are 
+    G_{on}(\varphi, \chi) = A\exp(\chi)\exp(-2Q[\sigma_{on}\cdot\varphi]) + b_{on}
+    and
+    G_{off}(\varphi, \chi) = A\exp(\chi)\exp(-2Q[\sigma_{off}\cdot\varphi]) + b_{off},
+    where A is the geometric overlap function divided by the squared range and Q is the integrator matrix.
+    
+    This function accepts an initial estimate of \chi, which is computed via the function 
+    get_denoiser_atten_backscatter_chi. The algorithm then performs the following pseudo code:
+    1. Denote given \chi estimate as the previous \chi estimate
+    2. Repeat until a stopping criteria is met:
+        3. Given the previous estimate of \chi, estimate estimate \varphi.
+        4. Given the estimate of \varphi from step 3, re-estimate \chi.
+        5. Let the \chi estimate of 3 denote the previous \chi estimate.
+    
+    The stopping criteria is the relative step size of both \chi and \varphi.
+    
+    Notes
+    -----
+    The one drawback of the this estimator is that it requires a geometric overlap function. The forward model will be 
+    adapted to abolish the requirement of the geometric overlap function. A second drawback is that it is assumed that 
+    the lidar range sampling interval is equivalent to the laser pulse length, which is not true for the UCAR DIAL; the 
+    DIAL transmits a 150 meters pulse, and the sampling is done at 150/4 meters. To take in account the sampling range 
+    interval and laser pulse length difference, we need to introduce a deblurring operator. 
+    
+    Parameters
+    ----------
+    stage0_data_dct : dictionary
+        The dictionary created by the function stage0_prepare_data.get_data_delR_120m_delT_120s.
+    prev_hat_chi_arr : np.array
+        An initial estimate of \chi; refer to the function get_denoiser_atten_backscatter_chi.
+    tau_chi_flt : float
+        The tuning parameter for estimating \chi.
+    tau_varphi_flt : float
+        The tuning parameter for estimating \varphi.
+    max_iter_int : int
+        The maximum number of iterations of the inversion algorithm.
+    epsilon_flt : float
+        The relative step size tolerance limit that is used for the stopping criteria. 
+    verbose_bl : bool
+        Set to true if verbose message are to be printed. 
+    sparsa_cfg_chi_obj : ptv.hsrl.denoise.sparsaconf
+        The SpaRSA configuration object for estimating chi. The most important parameters that have to be set in the 
+        configuration is max_iter_int and eps_flt; max_iter_int should be relative small, like 100. 
+    sparsa_cfg_varphi_obj : ptv.hsrl.denoise.sparsaconf
+        The SpaRSA configuration object for estimating varphi. The most important parameters that have to be set in the 
+        configuration is max_iter_int and eps_flt; max_iter_int should be relative small, like 100. 
+    
+    Returns
+    -------
+    An six element tuple is returned:
+    1. The water vapor estimate in units of [g / m^3].
+    2. The log of the attenuated backscatter cross-section. 
+    3. The number iteration that the algorithm went through either before the stopping criteria has been met or 
+        the maximum number of iterations have been reached. 
+    4. The objective function; it is suppose to be a monotonically decreasing function. If it is not, then something 
+        is very wrong and the code needs to be debugged. 
+    5. The validation error as a function of number of iterations.
+    6. The relative step size as a function of number of iterations."""
+    
     
     # Create the Poisson thinning objects
     on_poisson_thn_obj = denoise.poissonthin (stage0_data_dct ['on_cnts_arr'], 
@@ -203,6 +305,5 @@ def estimate_water_vapor_varphi (stage0_data_dct, prev_hat_chi_arr, tau_chi_flt,
     # Offset the validation error array so that it is non-negative
     vld_err_arr += np.sum (gammaln (on_poisson_thn_obj._y_vld_arr + 1) + gammaln (off_poisson_thn_obj._y_vld_arr + 1))
     
-    return (hat_varphi_arr, hat_chi_arr, j_idx, objF_arr, vld_err_arr, 
-        re_step_avg_arr, re_step_varphi_arr, re_step_chi_arr)
+    return hat_varphi_arr, hat_chi_arr, j_idx, objF_arr, vld_err_arr, re_step_avg_arr
     

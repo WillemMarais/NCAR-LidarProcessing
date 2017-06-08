@@ -58,7 +58,7 @@ print ('(INFO) Stage 0 - Preparing data')
 # Get data using Matt Hayman's code
 delta_t_int = 5
 hour_start_int = 0
-hour_end_int = 5
+hour_end_int = 24
 # TODO: Set the directoru where the UCAR data are located 
 ucar_dial_data_dirP_str = os.path.join (os.environ ['HOME'], 'ProjectsSSEC/Research_local/UCARDial/Data')
 cal_path_str = os.path.join (os.environ ['HOME'], base_dirP_str, 'NCAR-LidarProcessing/calibrations')
